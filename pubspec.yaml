@@ -1,0 +1,17 @@
+name: zeytinx
+description: ZeytinX is a comprehensive local data management and module library prepared to develop large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the zeytin_local_storage infrastructure.
+version: 1.0.0
+repository: https://github.com/JeaFrid/ZeytinX
+homepage: https://github.com/JeaFrid/ZeytinLocalStorage
+issue_tracker: https://github.com/JeaFrid/ZeytinLocalStorage/issues
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  uuid: ^4.5.3
+  zeytin_local_storage: ^1.0.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
