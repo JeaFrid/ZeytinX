@@ -1,7 +1,8 @@
-# ZeytinX
-*Developed with love by JeaFriday!*
+# ZeytinX🫒
 
-ZeytinX is a comprehensive local data management and module library prepared to develop large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the [zeytin_local_storage](https://pub.dev/packages/zeytin_local_storage) infrastructure. 
+_Developed with love by JeaFriday!_
+
+ZeytinX is a comprehensive local data management and module library prepared to develop large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the [zeytin_local_storage](https://pub.dev/packages/zeytin_local_storage) infrastructure.
 
 This package provides user management, real-time chat, social feed, product/store management, notification system, and more under a single roof through standardized models and services.
 
@@ -9,14 +10,14 @@ This package provides user management, real-time chat, social feed, product/stor
 
 ZeytinX offers the following core services and models out of the box:
 
-* **User Management (`ZeytinXUser`)**: Registration, login, profile update, follow/unfollow, blocking, and activity status tracking.
-* **Social Media (`ZeytinXSocial`)**: Post creation, liking, commenting, and comment likes.
-* **Chat and Messaging (`ZeytinXChat`)**: One-on-one and group chats, text/media messages, reactions, read/delivered status, message pinning, and system messages (e.g., "User joined"). Real-time stream listening support.
-* **Community Management (`ZeytinXCommunity`)**: Community creation, sub-rooms (text/voice), invite code creation and validation, announcement boards.
-* **E-Commerce (`ZeytinXProducts` & `ZeytinXStore`)**: Store and product creation, product view count, review, and like system.
-* **Notification System (`ZeytinXNotificationService`)**: General and in-app notification dispatch, mark as read.
-* **Forum (`ZeytinXForum`)**: Category management, thread creation, adding entries to a thread, pinning, locking, and marking as solved.
-* **Library / Books (`ZeytinXLibrary`)**: Book and chapter addition, searching by ISBN, reviewing and liking books.
+- **User Management (`ZeytinXUser`)**: Registration, login, profile update, follow/unfollow, blocking, and activity status tracking.
+- **Social Media (`ZeytinXSocial`)**: Post creation, liking, commenting, and comment likes.
+- **Chat and Messaging (`ZeytinXChat`)**: One-on-one and group chats, text/media messages, reactions, read/delivered status, message pinning, and system messages (e.g., "User joined"). Real-time stream listening support.
+- **Community Management (`ZeytinXCommunity`)**: Community creation, sub-rooms (text/voice), invite code creation and validation, announcement boards.
+- **E-Commerce (`ZeytinXProducts` & `ZeytinXStore`)**: Store and product creation, product view count, review, and like system.
+- **Notification System (`ZeytinXNotificationService`)**: General and in-app notification dispatch, mark as read.
+- **Forum (`ZeytinXForum`)**: Category management, thread creation, adding entries to a thread, pinning, locking, and marking as solved.
+- **Library / Books (`ZeytinXLibrary`)**: Book and chapter addition, searching by ISBN, reviewing and liking books.
 
 ## Installation
 
@@ -45,12 +46,12 @@ import 'package:zeytinx/zeytinx.dart';
 void main() async {
   // Storage initialization
   final storage = ZeytinStorage();
-  
+
   // Building services
   final userService = ZeytinXUser(storage);
   final chatService = ZeytinXChat(storage);
   final socialService = ZeytinXSocial(storage);
-  
+
   // App startup...
 }
 ```
@@ -66,8 +67,8 @@ Provides user registration, login operations, and profile management.
 ```dart
 // User Registration
 ZeytinXResponse response = await userService.create(
-  "johndoe", 
-  "john@example.com", 
+  "johndoe",
+  "john@example.com",
   "password123"
 );
 
@@ -83,7 +84,7 @@ var loginRes = await userService.login("john@example.com", "password123");
 
 // Follow User
 await userService.followUser(
-  myUid: "my_id", 
+  myUid: "my_id",
   targetUid: "target_user_id"
 );
 ```
@@ -124,8 +125,8 @@ chatService.listen(
 
 // Adding Reaction to a Message
 await chatService.addReaction(
-  messageId: "message_id", 
-  userId: myUser.uid, 
+  messageId: "message_id",
+  userId: myUser.uid,
   emoji: "👍"
 );
 ```
@@ -213,7 +214,7 @@ var unread = await notificationService.getPendingInAppNotifications("user_id");
 
 // Mark as read
 await notificationService.markAsSeen(
-  notificationId: "notification_id", 
+  notificationId: "notification_id",
   userId: "user_id"
 );
 ```
@@ -225,8 +226,8 @@ Used to create categorized message boards.
 ```dart
 // Add Category
 var category = ZeytinXForumCategoryModel(
-  id: "", 
-  title: "Software", 
+  id: "",
+  title: "Software",
   description: "Software development discussions"
 );
 await forumService.createCategory(categoryModel: category);
@@ -254,13 +255,16 @@ await forumService.addEntry(entry: entry, threadId: "thread_id");
 ## Utility Classes (Utils)
 
 ### ZeytinXResponse
+
 All service methods provide a standardized return type:
-* `isSuccess`: Whether the operation was successful (`bool`).
-* `message`: Operation result message (`String`).
-* `data`: Returned data (`Map<String, dynamic>?`).
-* `error`: Error details if any (`String?`).
+
+- `isSuccess`: Whether the operation was successful (`bool`).
+- `message`: Operation result message (`String`).
+- `data`: Returned data (`Map<String, dynamic>?`).
+- `error`: Error details if any (`String?`).
 
 ### Console Outputs (ZeytinXPrint)
+
 You can use the `ZeytinXPrint` class for colorful logging in the terminal:
 
 ```dart
@@ -270,9 +274,11 @@ ZeytinXPrint.warningPrint("Warning, missing data."); // Yellow outputs
 ```
 
 ### Date Formatting Extension
+
 A `.timeAgo` extension has been added to `DateTime` objects. It provides easy usage in social media feeds.
 
-```dart
+````dart
 DateTime date = DateTime.now().subtract(Duration(hours: 2));
 print(date.timeAgo); // Output: "2 hours ago"
 ```# ZeytinX
+````
