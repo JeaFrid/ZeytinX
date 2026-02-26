@@ -2,14 +2,12 @@ import 'dart:async';
 
 import 'package:uuid/uuid.dart';
 import 'package:zeytin_local_storage/zeytin_local_storage.dart';
-import 'package:zeytinx/src/utils/operation.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 class ZeytinX {
   final String namespace;
   final String truckID;
-  final String basePath;
-  ZeytinX(this.namespace, this.basePath, this.truckID);
+  ZeytinX(this.namespace, this.truckID);
   Uuid uuid = Uuid();
   ZeytinStorage? zeytin;
   Future<void> initialize(String basePath) async {
@@ -26,6 +24,8 @@ class ZeytinX {
     try {
       return await action();
     } catch (e, s) {
+      ZeytinXPrint.errorPrint(e.toString());
+      ZeytinXPrint.errorPrint(s.toString());
       return ZeytinXResponse(
           isSuccess: false, message: "Error", error: "$e, $s");
     }
@@ -45,14 +45,15 @@ class ZeytinX {
           message: "Error",
           error: "Unknown Error!",
         );
+        String id = uuid.v4();
         await zeytin!.add(
-          data: ZeytinValue(box, tag ?? uuid.v4(), value),
+          data: ZeytinValue(box, tag ?? id, value),
           isEncrypt: isEncrypt,
           ttl: ttl,
           onSuccess: () {
             res = ZeytinXResponse(
               isSuccess: true,
-              data: value,
+              data: ZeytinValue(box, tag ?? id, value).toMap(),
               message: "Oki Doki!",
             );
           },
@@ -109,8 +110,6 @@ class ZeytinX {
 
   Future<ZeytinXResponse> getBox({
     required String box,
-    String? tag,
-    required List<ZeytinValue> entries,
   }) async {
     return await _run(
       () async {

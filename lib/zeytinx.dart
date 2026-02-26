@@ -14,6 +14,8 @@ export 'src/utils/date_extensions.dart';
 export 'src/utils/response.dart';
 export 'src/models/file.dart';
 export 'src/utils/print.dart';
+export 'src/utils/value.dart';
+export 'src/utils/operation.dart';
 export 'src/services/books.dart';
 export 'src/services/chat.dart';
 export 'src/services/community.dart';

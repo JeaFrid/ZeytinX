@@ -16,3 +16,8 @@ You can review: src/database.dart && utils/operation.dart
 ## 1.2.1
 
 - License Changed
+
+## 1.2.2
+
+- Data security was ensured during data entry.
+- Dependencies were reduced.
