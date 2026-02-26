@@ -23,3 +23,4 @@ export 'src/services/product.dart';
 export 'src/services/social.dart';
 export 'src/services/store.dart';
 export 'src/services/users.dart';
+export 'src/services/database.dart';
