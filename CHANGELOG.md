@@ -37,3 +37,7 @@ You can review: src/database.dart && utils/operation.dart
 ## 1.3.1
 
 - The document (README.md) has been updated.
+
+## 1.3.2
+
+- The document (README.md) has been updated.

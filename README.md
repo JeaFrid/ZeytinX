@@ -1,6 +1,6 @@
 # ZeytinX 🫒
 
-Crafted with love for developers! 
+Developed with love by JeaFriday!
 
 **ZeytinX** is an "all-inclusive" local data management and module library prepared to develop massive, large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the `zeytin_local_storage` infrastructure. 
 
