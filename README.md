@@ -1,284 +1,556 @@
-# ZeytinX🫒
+# ZeytinX 🫒
 
-_Developed with love by JeaFriday!_
+Crafted with love for developers! 
 
-ZeytinX is a comprehensive local data management and module library prepared to develop large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the [zeytin_local_storage](https://pub.dev/packages/zeytin_local_storage) infrastructure.
+**ZeytinX** is an "all-inclusive" local data management and module library prepared to develop massive, large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the `zeytin_local_storage` infrastructure. 
 
-This package provides user management, real-time chat, social feed, product/store management, notification system, and more under a single roof through standardized models and services.
+This package; offers almost everything an application might need under a single roof with standardized models, from user management to real-time chat, from Discord-like community structures to e-commerce carts.
 
-## Features
 
-ZeytinX offers the following core services and models out of the box:
+## 📖 Table of Contents
 
-- **User Management (`ZeytinXUser`)**: Registration, login, profile update, follow/unfollow, blocking, and activity status tracking.
-- **Social Media (`ZeytinXSocial`)**: Post creation, liking, commenting, and comment likes.
-- **Chat and Messaging (`ZeytinXChat`)**: One-on-one and group chats, text/media messages, reactions, read/delivered status, message pinning, and system messages (e.g., "User joined"). Real-time stream listening support.
-- **Community Management (`ZeytinXCommunity`)**: Community creation, sub-rooms (text/voice), invite code creation and validation, announcement boards.
-- **E-Commerce (`ZeytinXProducts` & `ZeytinXStore`)**: Store and product creation, product view count, review, and like system.
-- **Notification System (`ZeytinXNotificationService`)**: General and in-app notification dispatch, mark as read.
-- **Forum (`ZeytinXForum`)**: Category management, thread creation, adding entries to a thread, pinning, locking, and marking as solved.
-- **Library / Books (`ZeytinXLibrary`)**: Book and chapter addition, searching by ISBN, reviewing and liking books.
+1. [Installation](#1-installation)
+2. [Basic Concepts and Helpers](#2-basic-concepts-and-helpers)
+   - ZeytinXResponse
+   - ZeytinXPrint & Time Format
+3. [ZeytinX Engine (Core Database)](#3-zeytinx-engine-core-database)
+   - Initialization
+   - Basic CRUD Operations (Add, Get, Update, Remove)
+   - Batch Operations and Export/Import
+4. [ZeytinXMiner 🚀 (Lightning Fast Data Over RAM)](#4-zeytinx-miner--lightning-fast-data-over-ram)
+5. [Modules and Services](#5-modules-and-services)
+   - [👤 User Management (ZeytinXUser)](#-user-management-zeytinxuser)
+   - [🌍 Social Media (ZeytinXSocial)](#-social-media-zeytinxsocial)
+   - [💬 Chat and Messaging (ZeytinXChat)](#-chat-and-messaging-zeytinxchat)
+   - [🏰 Community System (ZeytinXCommunity)](#-community-system-zeytinxcommunity)
+   - [🛍️ E-Commerce (Store & Products)](#-e-commerce-store--products)
+   - [🏛️ Forum System (ZeytinXForum)](#-forum-system-zeytinxforum)
+   - [📚 Library / Books (ZeytinXLibrary)](#-library--books-zeytinxlibrary)
+   - [🔔 Notification System (ZeytinXNotification)](#-notification-system-zeytinxnotification)
+6. [Full Enum List](#6-full-enum-list)
 
-## Installation
+---
 
-Add the package to your `pubspec.yaml` file:
+## 1. Installation
+
+Add the packages to your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zeytinx: ^1.0.0
-  zeytin_local_storage: ^1.0.0 # ZeytinX's dependency
+  zeytinx: ^1.3.0
+  zeytin_local_storage: ^1.2.1
+  uuid: ^4.5.3
 ```
 
-Include it in the project:
+Include it in your project:
 
 ```dart
 import 'package:zeytinx/zeytinx.dart';
 ```
 
-## Initialization and Configuration
+---
 
-ZeytinX services require a `ZeytinStorage` object, which is the core data storage unit. You can initialize all services over a single storage reference at the start of your project.
+## 2. Basic Concepts and Helpers
+
+Before moving on to ZeytinX's modules, you must know how the system talks to you.
+
+### ZeytinXResponse
+Almost every function in ZeytinX (creating a user, sending a message, fetching data) returns you a standard `ZeytinXResponse` object.
 
 ```dart
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
+class ZeytinXResponse {
+  final bool isSuccess; // Is the operation successful?
+  final String message; // Operation result message ("Oki Doki!", "Error", etc.)
+  final Map<String, dynamic>? data; // Returned data (if any)
+  final String? error; // Error detail (if any)
+}
+```
+
+### ZeytinXPrint & Extensions
+Tools are available to colorize your console outputs and convert dates to social media format.
+
+```dart
+// Colored console outputs
+ZeytinXPrint.successPrint("User added!"); // Green
+ZeytinXPrint.errorPrint("Password too short!"); // Red
+ZeytinXPrint.warningPrint("Attention, missing data."); // Yellow
+
+// Date Formatting (Social media style)
+DateTime date = DateTime.now().subtract(Duration(hours: 2));
+print(date.timeAgo); // Output: "2 hours ago" (or "Just now", "3 days ago", etc.)
+```
+
+---
+
+## 3. ZeytinX Engine (Core Database)
+
+All modules in the ZeytinX package basically require the `ZeytinX` class or directly `ZeytinStorage`. Let's boot up our database first.
+
+### Starting the Engine
+
+```dart
 import 'package:zeytinx/zeytinx.dart';
 
 void main() async {
-  // Storage initialization
-  final storage = ZeytinStorage();
-
-  // Building services
-  final userService = ZeytinXUser(storage);
-  final chatService = ZeytinXChat(storage);
-  final socialService = ZeytinXSocial(storage);
-
-  // App startup...
+  // We set up the engine by determining Namespace and TruckID (Truck Identity).
+  final coreDB = ZeytinX("my_app_namespace", "main_truck");
+  
+  // We start the engine by providing a directory.
+  await coreDB.initialize("./my_local_database");
+  
+  if(coreDB.isInitialized) {
+    ZeytinXPrint.successPrint("Engine is ready!");
+  }
 }
 ```
 
-## Use Cases
+### Basic CRUD (Add, Read, Update, Delete)
 
-All operations standardly return a `ZeytinXResponse` object. This object contains whether the operation was successful (`isSuccess`), the message, the returned data if any (`data`), and errors (`error`).
-
-### 1. User Operations (Registration, Login, Follow)
-
-Provides user registration, login operations, and profile management.
+If you want to write your own custom data instead of using ready-made modules, you can use `coreDB`'s basic methods.
 
 ```dart
-// User Registration
-ZeytinXResponse response = await userService.create(
-  "johndoe",
-  "john@example.com",
-  "password123"
+// 1. Adding Data (Add)
+ZeytinXResponse addRes = await coreDB.add(
+  box: "my_custom_box", // Table / Box name
+  tag: "user_123",      // Unique key (Assigns UUID if left empty)
+  value: {"name": "Jea", "role": "Admin"}, // Map to be stored
 );
 
-if (response.isSuccess) {
-  ZeytinXPrint.successPrint("User created!");
-  var newUser = ZeytinXUserModel.fromJson(response.data!);
-} else {
-  ZeytinXPrint.errorPrint(response.error ?? "Unknown error");
+// 2. Reading Data (Get)
+ZeytinXResponse getRes = await coreDB.get(box: "my_custom_box", tag: "user_123");
+if (getRes.isSuccess) {
+  print(getRes.data?['value']); // {"name": "Jea", "role": "Admin"}
 }
 
-// User Login
-var loginRes = await userService.login("john@example.com", "password123");
-
-// Follow User
-await userService.followUser(
-  myUid: "my_id",
-  targetUid: "target_user_id"
-);
-```
-
-### 2. Chat System
-
-You can create private or group messaging, and listen to live messages with a stream structure.
-
-```dart
-// Creating a new private chat
-var chatRes = await chatService.createChat(
-  chatName: "Private Chat",
-  participants: [myUser, targetUser],
-  type: ZeytinXChatType.private,
-);
-
-// Sending a Message
-await chatService.sendMessage(
-  chatId: chatRes.data!["chatID"],
-  sender: myUser,
-  text: "Hello, how are you?",
-  messageType: ZeytinXMessageType.text,
-);
-
-// Listening to Messages Live (Stream)
-chatService.listen(
-  chatId: "chat_id",
-  onMessageReceived: (message) {
-    print("New message: ${message.text}");
-  },
-  onMessageUpdated: (message) {
-    print("Message edited: ${message.text}");
-  },
-  onMessageDeleted: (messageId) {
-    print("Message deleted: $messageId");
+// 3. Updating Data (Update - came with v1.3.0)
+// Gives you the previous data, you save it back in its updated form.
+await coreDB.update(
+  box: "my_custom_box",
+  tag: "user_123",
+  value: (currentValue) async {
+    currentValue["role"] = "SuperAdmin";
+    return currentValue;
   }
 );
 
-// Adding Reaction to a Message
-await chatService.addReaction(
-  messageId: "message_id",
-  userId: myUser.uid,
-  emoji: "👍"
+// 4. Deleting Data (Remove)
+await coreDB.remove(box: "my_custom_box", tag: "user_123");
+```
+
+### Batch Operations and Export/Import (Backup)
+
+Methods that came with v1.3.0 to move, export, or perform multiple operations on the database:
+
+```dart
+// Export the entire database as JSON (Watch out for RAM!)
+var exportRes = await coreDB.exportToJson();
+
+// Slowly extract the data without tiring the system
+coreDB.exportToStream().listen((res) {
+  print("Box exported: ${res.message}");
+});
+
+// Set up the massive database from scratch from a ready JSON backup
+await coreDB.importFromJson(jsonStr: '{"box1": {"tag1": {"a": "b"}}}');
+
+// Multiple Box Operation (Intervening in many boxes at the same time)
+await coreDB.multiple(
+  processes: (boxes) async {
+    // Perform operations on all boxes...
+    return ZeytinXResponse(isSuccess: true, message: "Done");
+  },
+  onSuccess: () async => ZeytinXResponse(isSuccess: true, message: "Successful"),
+  onError: (e, s) async => ZeytinXResponse(isSuccess: false, message: e),
 );
 ```
 
-### 3. Social Media (Feed and Posts)
+---
 
-Post sharing, like, and comment scenarios.
+## 4. ZeytinXMiner 🚀 (Lightning Fast Data Over RAM)
+
+**ZeytinXMiner**, which came with v1.3.0, mines your database from your disk and extracts it to RAM (memory). You no longer need to use `await` to access data!
 
 ```dart
-// Post Creation
-var postModel = ZeytinXSocialModel(
-  user: myUser,
-  text: "The weather is very nice today!",
-  category: "General",
+// Connect the engine to the miner
+final miner = ZeytinXMiner(coreDB);
+
+// Assign workers to the task. Starts copying the database to RAM in the background.
+miner.assignWorkers();
+
+// Access data SYNCHRONOUSLY (without await)! BOOM!
+Map<String, dynamic>? userData = miner.get("my_custom_box", "user_123");
+
+// Filter all data in the box (Works instantly)
+List<Map<String, dynamic>> admins = miner.filter(
+  "my_custom_box", 
+  (data) => data["role"] == "Admin"
 );
 
-await socialService.createPost(postModel: postModel);
+// Dispose of it to prevent memory leaks when you are done
+miner.dispose();
+```
 
-// Liking a Post
-await socialService.addLike(user: myUser, postID: "post_id");
+---
 
-// Commenting
+## 5. Modules and Services
+
+The real power of ZeytinX is the ready-made massive architectures it wrote for you. All services work with the `ZeytinStorage` class under the engine.
+
+### 👤 User Management (`ZeytinXUser`)
+
+Manages registration, login, following, blocking, and activity status. All these operations return via `ZeytinXUserModel`. Everything including the user's school, job, address, theme, and biography has been thought of inside the class.
+
+```dart
+// Start the service
+final userService = ZeytinXUser(coreDB.zeytin!);
+
+// 1. Register
+ZeytinXResponse registerRes = await userService.create(
+  "jeafriday",             // Username
+  "jea@example.com",       // Email
+  "securepassword123"      // Password (Must be at least 6 characters)
+);
+
+// 2. Login
+ZeytinXResponse loginRes = await userService.login("jea@example.com", "securepassword123");
+ZeytinXUserModel myUser = ZeytinXUserModel.fromJson(loginRes.data!);
+
+// 3. Following / Unfollowing a User
+await userService.followUser(myUid: myUser.uid, targetUid: "target_id");
+bool isFollowing = await userService.isFollow(myUid: myUser.uid, targetUid: "target_id");
+await userService.unfollowUser(myUid: myUser.uid, targetUid: "target_id");
+
+// 4. Blocking a User
+await userService.blockUser(myUid: myUser.uid, targetUid: "target_id");
+
+// 5. Activity Status (Online/Offline)
+await userService.updateUserActive(myUser); // Updates last seen
+bool online = await userService.isActive(myUser, thresholdSeconds: 30); // 30 seconds rule
+```
+
+---
+
+### 🌍 Social Media (`ZeytinXSocial`)
+
+Covers post sharing, liking, commenting, and comment liking operations. The basic model is `ZeytinXSocialModel`.
+
+```dart
+final socialService = ZeytinXSocial(coreDB.zeytin!);
+
+// 1. Creating a Post
+var newPost = ZeytinXSocialModel(
+  user: myUser,
+  text: "Writing code with ZeytinX is great!",
+  category: "Software",
+  images: ["url1.jpg", "url2.jpg"] // Optional
+);
+ZeytinXResponse postRes = await socialService.createPost(postModel: newPost);
+String postId = postRes.data!["id"];
+
+// 2. Liking a Post and Removing the Like
+await socialService.addLike(user: myUser, postID: postId);
+await socialService.removeLike(user: myUser, postID: postId);
+
+// 3. Commenting
 var comment = ZeytinXSocialCommentsModel(
   user: myUser,
-  text: "I totally agree!",
+  text: "I totally agree!"
 );
-await socialService.addComment(comment: comment, postID: "post_id");
+await socialService.addComment(comment: comment, postID: postId);
+
+// 4. Liking a Comment
+await socialService.addCommentLike(user: myUser, postID: postId, commentID: "comment_id");
+
+// 5. Fetching the Feed (Feed)
+List<ZeytinXSocialModel> feed = await socialService.getAllPost();
 ```
 
-### 4. Community and Invite Codes
+---
 
-It is the foundation of Discord / Slack-like structures.
+### 💬 Chat and Messaging (`ZeytinXChat`)
+
+It is ideal for building structures similar to WhatsApp or Telegram. Supports end-to-end encryption keys, including Self Destruct messages.
 
 ```dart
-// Community Creation
-var communityRes = await communityService.createCommunity(
+final chatService = ZeytinXChat(coreDB.zeytin!);
+
+// 1. Starting a Private or Group Chat
+var chatRes = await chatService.createChat(
+  chatName: "Coding Group",
+  participants: [user1, user2],
+  type: ZeytinXChatType.group, // private, group, channel, etc.
+);
+String chatId = chatRes.data!["chatID"];
+
+// 2. Sending a Message
+await chatService.sendMessage(
+  chatId: chatId,
+  sender: user1,
+  text: "Greetings everyone!",
+  messageType: ZeytinXMessageType.text, // image, video, file, system, etc.
+);
+
+// 3. Listening to Real-Time Messages
+chatService.listen(
+  chatId: chatId,
+  onMessageReceived: (message) => print("New Message: ${message.text}"),
+  onMessageUpdated: (message) => print("Edited: ${message.text}"),
+  onMessageDeleted: (messageId) => print("Deleted: $messageId"),
+);
+
+// 4. Advanced Message Operations
+await chatService.addReaction(messageId: "msg_id", userId: user1.uid, emoji: "🔥");
+await chatService.starMessage(messageId: "msg_id", userId: user1.uid);
+await chatService.markAsRead(messageId: "msg_id", userId: user1.uid);
+await chatService.pinMessage(messageId: "msg_id", pinnedBy: user1.uid, chatId: chatId);
+
+// 5. System Messages (E.g.: "Ahmet joined the group")
+await chatService.createSystemMessage(
+  chatId: chatId,
+  type: ZeytinXSystemMessageType.userJoined,
+  userName: "Ahmet"
+);
+```
+
+---
+
+### 🏰 Community System (`ZeytinXCommunity`)
+
+Supports hierarchical structures in the style of Discord, Slack, or MS Teams. Includes invite codes (with limit and duration restrictions), sub-rooms, announcement boards.
+
+```dart
+final communityService = ZeytinXCommunity(coreDB.zeytin!);
+
+// 1. Creating a Community (Server)
+var comRes = await communityService.createCommunity(
   name: "Flutter Developers",
   creator: myUser,
   participants: [myUser],
-  description: "Everything about Flutter."
+  description: "Turkey's largest Flutter community!"
 );
+String comId = comRes.data!["id"];
 
-String communityId = communityRes.data!["id"];
-
-// Owning a Room
+// 2. Creating Sub Rooms (Channels)
 await communityService.createRoom(
-  communityId: communityId,
+  communityId: comId,
   admin: myUser,
-  roomName: "General Chat",
-  type: ZeytinXRoomType.text,
+  roomName: "general-chat",
+  type: ZeytinXRoomType.text, // can also be voice or announcement
 );
 
-// Generating Invite Code (Valid for 2 hours, 10 uses)
+// 3. Creating an Invite Code (Time and Use Limited)
 var inviteRes = await communityService.createInviteCode(
-  communityId: communityId,
+  communityId: comId,
   admin: myUser,
-  duration: Duration(hours: 2),
-  maxUses: 10,
+  duration: Duration(days: 1), // Valid for 1 Day
+  maxUses: 10,                 // Only 10 people can use it
 );
+String code = inviteRes.data!["code"];
 
-String inviteCode = inviteRes.data!["code"];
-
-// User Joining with Invite Code
-var validateRes = await communityService.validateInviteCode(code: inviteCode);
-if(validateRes.isSuccess) {
-  await communityService.useInviteCode(code: inviteCode);
-  await communityService.joinCommunity(communityId: communityId, user: newUser);
+// 4. Joining with an Invite Code (The other party's code)
+var validate = await communityService.validateInviteCode(code: code);
+if(validate.isSuccess) {
+  await communityService.useInviteCode(code: code);
+  await communityService.joinCommunity(communityId: comId, user: targetUser);
 }
-```
 
-### 5. Notifications
-
-You can send in-app or general log notifications to users.
-
-```dart
-await notificationService.sendInAppNotification(
-  title: "New Message",
-  description: "Ahmet sent you a message.",
-  tag: "chat_notification",
-  targetUserIds: ["target_user_id"],
-);
-
-// Get Unread
-var unread = await notificationService.getPendingInAppNotifications("user_id");
-
-// Mark as read
-await notificationService.markAsSeen(
-  notificationId: "notification_id",
-  userId: "user_id"
+// 5. Sending a Board Announcement
+await communityService.sendBoardPost(
+  communityId: comId,
+  sender: myUser,
+  text: "Rules have been updated, please read."
 );
 ```
 
-### 6. Forum Management
+---
 
-Used to create categorized message boards.
+### 🛍️ E-Commerce (Store & Products)
+
+Prepares the database for store management, product showcase, stock, view counts, cart systems. (`ZeytinXStore` and `ZeytinXProducts`)
 
 ```dart
-// Add Category
-var category = ZeytinXForumCategoryModel(
+final storeService = ZeytinXStore(coreDB.zeytin!);
+final productService = ZeytinXProducts(coreDB.zeytin!);
+
+// 1. Opening a Store
+var storeModel = ZeytinXStoreModel(
   id: "",
-  title: "Software",
-  description: "Software development discussions"
+  name: "Jea's Tech Shop",
+  description: "Cheap and quality technology.",
+  owners: [myUser],
+  isVerified: true,
 );
-await forumService.createCategory(categoryModel: category);
+var storeRes = await storeService.createStore(storeModel: storeModel);
 
-// Open a Thread
+// 2. Adding a Product
+var productModel = ZeytinXProductModel(
+  id: "",
+  storeId: storeRes.data!["id"],
+  title: "ZeytinX Pro License",
+  price: 99.99,
+  currency: "USD",
+  stock: 150,
+  category: "Software",
+);
+var prodRes = await productService.createProduct(productModel: productModel);
+
+// 3. Increasing Product View Count
+await productService.addView(productID: prodRes.data!["id"]);
+
+// 4. Commenting/Rating a Product
+var review = ZeytinXProductCommentModel(
+  id: "", 
+  productId: prodRes.data!["id"],
+  user: myUser,
+  text: "A very fast database package, I loved it.",
+  rating: 5.0
+);
+await productService.addComment(comment: review, productID: prodRes.data!["id"]);
+```
+
+---
+
+### 🏛️ Forum System (`ZeytinXForum`)
+
+It is for creating categorized discussion boards like DonanımHaber, Reddit, etc.
+
+```dart
+final forumService = ZeytinXForum(coreDB.zeytin!);
+
+// 1. Create a Category
+var cat = ZeytinXForumCategoryModel(id: "", title: "Technology News", description: "...");
+var catRes = await forumService.createCategory(categoryModel: cat);
+
+// 2. Open a Thread
 var thread = ZeytinXForumThreadModel(
   id: "",
-  categoryId: "category_id",
+  categoryId: catRes.data!["id"],
   user: myUser,
-  title: "How to Use ZeytinX?",
-  content: "About package content and usage...",
+  title: "Where is Artificial Intelligence Going?",
+  content: "What do you think the latest language models..."
 );
-await forumService.createThread(threadModel: thread);
+var threadRes = await forumService.createThread(threadModel: thread);
 
-// Write an Entry to a Thread
+// 3. Enter an Entry (Reply) to the Thread
 var entry = ZeytinXForumEntryModel(
   id: "",
-  threadId: "thread_id",
-  user: myUser,
-  text: "The documentation is very explanatory, thanks.",
+  threadId: threadRes.data!["id"],
+  user: user2,
+  text: "I think they will take over humanity."
 );
-await forumService.addEntry(entry: entry, threadId: "thread_id");
+await forumService.addEntry(entry: entry, threadId: threadRes.data!["id"]);
+
+// 4. Marking the Thread as Solved/Locked
+await forumService.toggleThreadLock(threadId: threadRes.data!["id"], isLocked: true);
 ```
 
-## Utility Classes (Utils)
+---
 
-### ZeytinXResponse
+### 📚 Library / Books (`ZeytinXLibrary`)
 
-All service methods provide a standardized return type:
-
-- `isSuccess`: Whether the operation was successful (`bool`).
-- `message`: Operation result message (`String`).
-- `data`: Returned data (`Map<String, dynamic>?`).
-- `error`: Error details if any (`String?`).
-
-### Console Outputs (ZeytinXPrint)
-
-You can use the `ZeytinXPrint` class for colorful logging in the terminal:
+It is for book reading, chapter adding, and book reviewing platforms similar to Wattpad or Goodreads.
 
 ```dart
-ZeytinXPrint.successPrint("Operation successful."); // Green outputs
-ZeytinXPrint.errorPrint("An error occurred."); // Red outputs
-ZeytinXPrint.warningPrint("Warning, missing data."); // Yellow outputs
+final libService = ZeytinXLibrary(coreDB.zeytin!);
+
+// 1. Create a Book
+var book = ZeytinXBookModel(
+  id: "",
+  isbn: "978-3-16-148410-0",
+  title: "Planet Dart",
+  authors: [myUser],
+  publisher: "JeaFriday Press",
+  likes: []
+);
+var bookRes = await libService.createBook(bookModel: book);
+
+// 2. Add a Chapter
+var chapter = ZeytinXChapterModel(
+  id: "",
+  bookId: bookRes.data!["id"],
+  title: "Chapter 1: Variables",
+  content: "Once upon a time, starting with the word var...",
+  order: 1
+);
+await libService.addChapter(chapter: chapter);
+
+// 3. Search Book by ISBN
+List<ZeytinXBookModel> results = await libService.searchByISBN("978-3-16-148410-0");
 ```
 
-### Date Formatting Extension
+---
 
-A `.timeAgo` extension has been added to `DateTime` objects. It provides easy usage in social media feeds.
+### 🔔 Notification System (`ZeytinXNotification`)
 
-````dart
-DateTime date = DateTime.now().subtract(Duration(hours: 2));
-print(date.timeAgo); // Output: "2 hours ago"
-```# ZeytinX
-````
+Allows you to send general announcements or In-App notifications to users.
+
+```dart
+final notifService = ZeytinXNotificationService(coreDB.zeytin!);
+
+// 1. Sending In-App Notification
+await notifService.sendInAppNotification(
+  title: "New Follower",
+  description: "Ahmet started following you.",
+  tag: "follow_event",
+  targetUserIds: [myUser.uid],
+);
+
+// 2. Fetching Unread Notifications
+var pending = await notifService.getPendingInAppNotifications(myUser.uid);
+
+// 3. Marking as Seen
+await notifService.markAsSeen(notificationId: pending.first.id, userId: myUser.uid);
+```
+
+---
+
+## 6. Full Enum List
+
+Below are the enum definitions used in the package that standardize the database architecture. You can shape your application according to these rules without dealing with custom types.
+
+**ZeytinOpType** (Database Operation Type):
+* `put` / `update`: Adding/updating data
+* `delete`: Single data deletion
+* `deleteBox`: Deleting the table
+* `batch`: Multiple data entry
+* `clearAll`: Resetting everything
+
+**ZeytinXChatType** (Chat Types):
+* `private`: Private (One-to-one)
+* `privGroup`: Private Group
+* `superGroup`: Super Group
+* `channel`: Announcement Channel
+* `voiceChat`: Voice Chat Room
+* `muteChat`: Mute Chat
+* `group`: Normal Group
+
+**ZeytinXMessageType** (Message Content Types):
+* `text`: Text
+* `image`: Image
+* `video`: Video
+* `audio`: Audio
+* `file`: File
+* `location`: Location
+* `contact`: Contact Card
+* `sticker`: Sticker
+* `system`: System message (A joined, etc.)
+
+**ZeytinXMessageStatus** (Message Delivery Status):
+* `sending`: Sending
+* `sent`: Reached the server
+* `delivered`: Delivered to the other party
+* `read`: Read
+* `failed`: Failed to send
+
+**ZeytinXSystemMessageType** (System Message Types):
+* `userJoined`, `userLeft`, `groupCreated`, `nameChanged`, `photoChanged`, `adminAdded`, `adminRemoved`, `callStarted`, `callEnded`, `messagePinned`, `chatSecured`, `disappearingTimerChanged`, `none`.
+
+**ZeytinXCommunityModelType** & **ZeytinXRoomType**:
+Community types are similar to the chat structure. Sub rooms (Rooms) can be `text`, `voice`, or `announcement`.
+
+**ZeytinXFileType**:
+Media/file distinctions within the platform are kept as `image`, `video`, `doc`, `url`, `or`.
+
+
+
+Support Zeytin!💚

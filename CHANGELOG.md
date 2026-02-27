@@ -33,3 +33,7 @@ You can review: src/database.dart && utils/operation.dart
 - exportToJson: Verileri tek seferde çeker ve size verir. Bu işlemin sonunda elinizde tüm veritabanı olacak. DİKKAT: Bu işlem çok fazla RAM tüketebilir.
 - importFromJson: Tek seferde koca bir veritabanını sıfırdan (belki de bir yedek ile?) yazmanızı sağlar. Veri taşıma işleminde önerilir.
 - `import 'dart:convert';`: Yeni kütüphane eklendi.
+
+## 1.3.1
+
+- The document (README.md) has been updated.
