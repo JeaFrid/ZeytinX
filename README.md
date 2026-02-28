@@ -2,10 +2,30 @@
 
 Developed with love by JeaFriday!
 
-**ZeytinX** is an "all-inclusive" local data management and module library prepared to develop massive, large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the `zeytin_local_storage` infrastructure. 
+<p align="center">
+  <a href="https://buymeacoffee.com/jeafriday">
+    <img src="https://img.buymeacoffee.com/button-api/?text=Support me&emoji=☕&slug=jeafriday&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Support me" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/JeaFrid">
+    <img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub" />
+  </a>
+  <a href="https://pub.dev/publishers/jeafriday.com/packages">
+    <img src="https://img.shields.io/badge/Pub.dev-0175C2?style=for-the-badge&logo=dart&logoColor=white" alt="Pub.dev" />
+  </a>
+  <a href="https://www.linkedin.com/in/jeafriday/">
+    <img src="https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" />
+  </a>
+  <a href="https://t.me/jeafrid">
+    <img src="https://img.shields.io/badge/Telegram-26A8EA?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram" />
+  </a>
+</p>
+
+**ZeytinX** is an "all-inclusive" local data management and module library prepared to develop massive, large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the `zeytin_local_storage` infrastructure.
 
 This package; offers almost everything an application might need under a single roof with standardized models, from user management to real-time chat, from Discord-like community structures to e-commerce carts.
-
 
 ## 📖 Table of Contents
 
@@ -35,11 +55,15 @@ This package; offers almost everything an application might need under a single 
 
 Add the packages to your `pubspec.yaml` file:
 
+```
+flutter pub add zeytinx
+```
+
+or
+
 ```yaml
 dependencies:
   zeytinx: ^1.3.0
-  zeytin_local_storage: ^1.2.1
-  uuid: ^4.5.3
 ```
 
 Include it in your project:
@@ -55,6 +79,7 @@ import 'package:zeytinx/zeytinx.dart';
 Before moving on to ZeytinX's modules, you must know how the system talks to you.
 
 ### ZeytinXResponse
+
 Almost every function in ZeytinX (creating a user, sending a message, fetching data) returns you a standard `ZeytinXResponse` object.
 
 ```dart
@@ -67,6 +92,7 @@ class ZeytinXResponse {
 ```
 
 ### ZeytinXPrint & Extensions
+
 Tools are available to colorize your console outputs and convert dates to social media format.
 
 ```dart
@@ -94,10 +120,10 @@ import 'package:zeytinx/zeytinx.dart';
 void main() async {
   // We set up the engine by determining Namespace and TruckID (Truck Identity).
   final coreDB = ZeytinX("my_app_namespace", "main_truck");
-  
+
   // We start the engine by providing a directory.
   await coreDB.initialize("./my_local_database");
-  
+
   if(coreDB.isInitialized) {
     ZeytinXPrint.successPrint("Engine is ready!");
   }
@@ -182,7 +208,7 @@ Map<String, dynamic>? userData = miner.get("my_custom_box", "user_123");
 
 // Filter all data in the box (Works instantly)
 List<Map<String, dynamic>> admins = miner.filter(
-  "my_custom_box", 
+  "my_custom_box",
   (data) => data["role"] == "Admin"
 );
 
@@ -399,7 +425,7 @@ await productService.addView(productID: prodRes.data!["id"]);
 
 // 4. Commenting/Rating a Product
 var review = ZeytinXProductCommentModel(
-  id: "", 
+  id: "",
   productId: prodRes.data!["id"],
   user: myUser,
   text: "A very fast database package, I loved it.",
@@ -509,48 +535,51 @@ await notifService.markAsSeen(notificationId: pending.first.id, userId: myUser.u
 Below are the enum definitions used in the package that standardize the database architecture. You can shape your application according to these rules without dealing with custom types.
 
 **ZeytinOpType** (Database Operation Type):
-* `put` / `update`: Adding/updating data
-* `delete`: Single data deletion
-* `deleteBox`: Deleting the table
-* `batch`: Multiple data entry
-* `clearAll`: Resetting everything
+
+- `put` / `update`: Adding/updating data
+- `delete`: Single data deletion
+- `deleteBox`: Deleting the table
+- `batch`: Multiple data entry
+- `clearAll`: Resetting everything
 
 **ZeytinXChatType** (Chat Types):
-* `private`: Private (One-to-one)
-* `privGroup`: Private Group
-* `superGroup`: Super Group
-* `channel`: Announcement Channel
-* `voiceChat`: Voice Chat Room
-* `muteChat`: Mute Chat
-* `group`: Normal Group
+
+- `private`: Private (One-to-one)
+- `privGroup`: Private Group
+- `superGroup`: Super Group
+- `channel`: Announcement Channel
+- `voiceChat`: Voice Chat Room
+- `muteChat`: Mute Chat
+- `group`: Normal Group
 
 **ZeytinXMessageType** (Message Content Types):
-* `text`: Text
-* `image`: Image
-* `video`: Video
-* `audio`: Audio
-* `file`: File
-* `location`: Location
-* `contact`: Contact Card
-* `sticker`: Sticker
-* `system`: System message (A joined, etc.)
+
+- `text`: Text
+- `image`: Image
+- `video`: Video
+- `audio`: Audio
+- `file`: File
+- `location`: Location
+- `contact`: Contact Card
+- `sticker`: Sticker
+- `system`: System message (A joined, etc.)
 
 **ZeytinXMessageStatus** (Message Delivery Status):
-* `sending`: Sending
-* `sent`: Reached the server
-* `delivered`: Delivered to the other party
-* `read`: Read
-* `failed`: Failed to send
+
+- `sending`: Sending
+- `sent`: Reached the server
+- `delivered`: Delivered to the other party
+- `read`: Read
+- `failed`: Failed to send
 
 **ZeytinXSystemMessageType** (System Message Types):
-* `userJoined`, `userLeft`, `groupCreated`, `nameChanged`, `photoChanged`, `adminAdded`, `adminRemoved`, `callStarted`, `callEnded`, `messagePinned`, `chatSecured`, `disappearingTimerChanged`, `none`.
+
+- `userJoined`, `userLeft`, `groupCreated`, `nameChanged`, `photoChanged`, `adminAdded`, `adminRemoved`, `callStarted`, `callEnded`, `messagePinned`, `chatSecured`, `disappearingTimerChanged`, `none`.
 
 **ZeytinXCommunityModelType** & **ZeytinXRoomType**:
 Community types are similar to the chat structure. Sub rooms (Rooms) can be `text`, `voice`, or `announcement`.
 
 **ZeytinXFileType**:
 Media/file distinctions within the platform are kept as `image`, `video`, `doc`, `url`, `or`.
-
-
 
 Support Zeytin!💚
