@@ -77,6 +77,9 @@ class ZeytinX {
     required Map<String, dynamic> value,
     bool isEncrypt = false,
     Duration? ttl,
+    bool keepHistory = false,
+    String? auditReason,
+    bool sync = false,
   }) async {
     return await _run(
       () async {
@@ -90,6 +93,9 @@ class ZeytinX {
           data: ZeytinValue(box, tag ?? id, value),
           isEncrypt: isEncrypt,
           ttl: ttl,
+          keepHistory: keepHistory,
+          auditReason: auditReason,
+          sync: sync,
           onSuccess: () {
             res = ZeytinXResponse(
               isSuccess: true,
@@ -110,10 +116,64 @@ class ZeytinX {
     );
   }
 
+  Future<ZeytinXResponse> addCAS({
+    required String box,
+    String? tag,
+    required Map<String, dynamic> value,
+    required String casField,
+    required dynamic expectedValue,
+    bool isEncrypt = false,
+    Duration? ttl,
+    bool sync = false,
+  }) async {
+    return await _run(
+      () async {
+        ZeytinXResponse res = ZeytinXResponse(
+          isSuccess: false,
+          message: "Error",
+          error: "Unknown Error!",
+        );
+        String id = tag ?? uuid.v4();
+        await zeytin!.addCAS(
+          data: ZeytinValue(box, id, value),
+          casField: casField,
+          expectedValue: expectedValue,
+          isEncrypt: isEncrypt,
+          ttl: ttl,
+          sync: sync,
+          onSuccess: (success) {
+            if (success) {
+              res = ZeytinXResponse(
+                isSuccess: true,
+                data: ZeytinValue(box, id, value).toMap(),
+                message: "Oki Doki!",
+              );
+            } else {
+              res = ZeytinXResponse(
+                isSuccess: false,
+                message: "CAS Error",
+                error:
+                    "Expected value for '$casField' did not match. Update rejected.",
+              );
+            }
+          },
+          onError: (e, s) {
+            res = ZeytinXResponse(
+              isSuccess: false,
+              message: "Error",
+              error: "$e, $s",
+            );
+          },
+        );
+        return res;
+      },
+    );
+  }
+
   Future<ZeytinXResponse> addBatch({
     required String box,
     String? tag,
-    required List<ZeytinValue> entries,
+    required List<ZeytinXValue> entries,
     bool isEncrypt = false,
     Duration? ttl,
   }) async {
@@ -126,12 +186,50 @@ class ZeytinX {
         );
         await zeytin!.addBatch(
           boxId: box,
-          entries: entries,
+          entries: entries
+              .map(
+                (e) => ZeytinValue.fromMap(e.toMap()),
+              )
+              .toList(),
           isEncrypt: isEncrypt,
           ttl: ttl,
           onSuccess: () {
             res = ZeytinXResponse(
               isSuccess: true,
+              message: "Oki Doki!",
+            );
+          },
+          onError: (e, s) {
+            res = ZeytinXResponse(
+              isSuccess: false,
+              message: "Error",
+              error: "$e, $s",
+            );
+          },
+        );
+        return res;
+      },
+    );
+  }
+
+  Future<ZeytinXResponse> getAuditTrail({
+    required String box,
+    required String tag,
+  }) async {
+    return await _run(
+      () async {
+        ZeytinXResponse res = ZeytinXResponse(
+          isSuccess: false,
+          message: "Error",
+          error: "Unknown Error!",
+        );
+        await zeytin!.getAuditTrail(
+          targetBoxId: box,
+          targetTag: tag,
+          onSuccess: (history) {
+            res = ZeytinXResponse(
+              isSuccess: true,
+              data: {"history": history},
               message: "Oki Doki!",
             );
           },
@@ -221,6 +319,9 @@ class ZeytinX {
   Future<ZeytinXResponse> update({
     required String box,
     required String tag,
+    bool keepHistory = false,
+    String? auditReason,
+    bool sync = false,
     required Future<Map<String, dynamic>> Function(
             Map<String, dynamic> currentValue)
         value,
@@ -237,7 +338,14 @@ class ZeytinX {
           tag: tag,
           onSuccess: (v) async {
             Map<String, dynamic> data = await value(v.value!);
-            res = await add(box: box, tag: tag, value: data);
+            res = await add(
+              box: box,
+              tag: tag,
+              value: data,
+              keepHistory: keepHistory,
+              auditReason: auditReason,
+              sync: sync,
+            );
           },
           onError: (e, s) {
             res = ZeytinXResponse(
@@ -327,10 +435,7 @@ class ZeytinX {
     }
   }
 
-  Future<bool> existsTruck({
-    required String box,
-    required String tag,
-  }) async {
+  Future<bool> existsTruck() async {
     if (zeytin == null) {
       return false;
     }
@@ -353,6 +458,7 @@ class ZeytinX {
   Future<ZeytinXResponse> remove({
     required String box,
     required String tag,
+    bool sync = false,
   }) async {
     return await _run(
       () async {
@@ -364,6 +470,7 @@ class ZeytinX {
         await zeytin!.remove(
           boxId: box,
           tag: tag,
+          sync: sync,
           onSuccess: () {
             res = ZeytinXResponse(
               isSuccess: true,
@@ -385,6 +492,7 @@ class ZeytinX {
 
   Future<ZeytinXResponse> removeBox({
     required String box,
+    bool sync = false,
   }) async {
     return await _run(
       () async {
@@ -395,6 +503,7 @@ class ZeytinX {
         );
         await zeytin!.removeBox(
           boxId: box,
+          sync: sync,
           onSuccess: () {
             res = ZeytinXResponse(
               isSuccess: true,
@@ -610,7 +719,13 @@ class ZeytinX {
     );
   }
 
-  Stream<Map<String, dynamic>> get observer => zeytin!.changes;
+  Stream<Map<String, dynamic>> get observer {
+    if (zeytin == null) {
+      throw Exception("ZeytinX is not initialized yet!");
+    }
+    return zeytin!.changes;
+  }
+
   StreamSubscription observerBox({
     required String box,
     required Function(ZeytinXOperation event) operations,
@@ -673,7 +788,7 @@ class ZeytinX {
 
     List<String> boxes = targetBoxes ?? [];
     if (targetBoxes == null) {
-      await zeytin!.getAllTrucks(
+      await zeytin!.getAllBoxes(
         onSuccess: (result) {
           boxes = result;
         },
@@ -723,7 +838,7 @@ class ZeytinX {
         List<String> boxes = targetBoxes ?? [];
 
         if (targetBoxes == null) {
-          await zeytin!.getAllTrucks(
+          await zeytin!.getAllBoxes(
             onSuccess: (result) {
               boxes = result;
             },
@@ -815,7 +930,7 @@ class ZeytinXMiner {
   List<StreamSubscription> streamers = [];
 
   Future<void> _listener() async {
-    boxes = await x.getAllTrucks();
+    boxes = await x.getAllBoxes();
     for (var element in boxes) {
       final subscription = x.observerBox(
         box: element,

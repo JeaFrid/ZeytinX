@@ -23,6 +23,19 @@ Developed with love by JeaFriday!
   </a>
 </p>
 
+| Phase / Test               | Description                                    | Volume / Details       | Execution Time |
+| :------------------------- | :--------------------------------------------- | :--------------------- | :------------- |
+| **Preparation**            | Mock data generation in RAM                    | 60,000 items           | -              |
+| **Test 1.1: Batch Write**  | Single operation insertion (`addBatch`)        | 50,000 items           | 1,731 ms       |
+| **Test 1.2: Single Write** | Individual sequential insertions (`add`)       | 10,000 items           | 110 ms         |
+| **Maintenance**            | Database compaction & index repair (`compact`) | Entire DB              | 4,644 ms       |
+| **Test 2: Read**           | Random individual data retrieval               | 1,000 items (0 errors) | 3,104 ms       |
+| **Test 3: Update**         | Random individual data modification            | 1,000 items (0 errors) | 2,878 ms       |
+| **Verification**           | Cold read from disk after clearing RAM         | 9.23 MB file size      | 1,818 ms       |
+| **Test 4: Delete**         | Individual deletions (blocks of 10,000)        | 60,000 items           | 319 ms         |
+
+
+
 **ZeytinX** is an "all-inclusive" local data management and module library prepared to develop massive, large-scale applications (social media, e-commerce, forum, messaging, community, etc.) using the `zeytin_local_storage` infrastructure.
 
 This package; offers almost everything an application might need under a single roof with standardized models, from user management to real-time chat, from Discord-like community structures to e-commerce carts.

@@ -41,3 +41,7 @@ You can review: src/database.dart && utils/operation.dart
 ## 1.3.2
 
 - The document (README.md) has been updated.
+
+## 2.0.0
+
+- The ZeytinX wrapper has been updated due to an update to the Zeytin engine (zeytin_local_storage package). Check the engine's change logs for all details.
