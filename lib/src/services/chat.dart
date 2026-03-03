@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'package:uuid/uuid.dart';
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 class ZeytinXChat {
-  final ZeytinStorage zeytin;
+  final ZeytinX zeytin;
   static const String _chatsBox = 'chats';
   static const String _messagesBox = 'messages';
   static const String _myChatsBox = 'my_chats';
@@ -52,28 +51,22 @@ class ZeytinXChat {
         moreData: moreData,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_chatsBox, chatId, newChat.toJson()),
-        onSuccess: () {
-          response = ZeytinXResponse(
-            isSuccess: true,
-            message: "Chat created successfully",
-            data: newChat.toJson(),
-          );
-        },
-        onError: (e, s) {
-          response = ZeytinXResponse(isSuccess: false, message: e.toString());
-        },
+      var response = await zeytin.add(
+        box: _chatsBox,
+        tag: chatId,
+        value: newChat.toJson(),
       );
 
-      if (response != null && response!.isSuccess) {
+      if (response.isSuccess) {
         await _indexChatForParticipants(chatId, participants);
-        return response!;
+        return ZeytinXResponse(
+          isSuccess: true,
+          message: "Chat created successfully",
+          data: newChat.toJson(),
+        );
       }
 
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+      return response;
     } catch (e) {
       return ZeytinXResponse(
         isSuccess: false,
@@ -101,20 +94,24 @@ class ZeytinXChat {
   ) async {
     for (var user in participants) {
       List<String> currentChatIds = [];
-      await zeytin.get(
-        boxId: _myChatsBox,
+      var res = await zeytin.get(
+        box: _myChatsBox,
         tag: user.uid,
-        onSuccess: (result) {
-          if (result.value != null && result.value!["chatIds"] != null) {
-            currentChatIds = List<String>.from(result.value!["chatIds"]);
-          }
-        },
       );
+
+      if (res.isSuccess &&
+          res.data != null &&
+          res.data!['value'] != null &&
+          res.data!['value']["chatIds"] != null) {
+        currentChatIds = List<String>.from(res.data!['value']["chatIds"]);
+      }
 
       if (!currentChatIds.contains(chatId)) {
         currentChatIds.add(chatId);
         await zeytin.add(
-          data: ZeytinValue(_myChatsBox, user.uid, {"chatIds": currentChatIds}),
+          box: _myChatsBox,
+          tag: user.uid,
+          value: {"chatIds": currentChatIds},
         );
       }
     }
@@ -131,43 +128,34 @@ class ZeytinXChat {
 
       final messages = await getMessages(chatId: chatId, limit: 5000);
       for (var m in messages) {
-        await zeytin.remove(boxId: _messagesBox, tag: m.messageId);
+        await zeytin.remove(box: _messagesBox, tag: m.messageId);
       }
 
       for (var user in chat.participants) {
-        await zeytin.get(
-          boxId: _myChatsBox,
+        var res = await zeytin.get(
+          box: _myChatsBox,
           tag: user.uid,
-          onSuccess: (res) async {
-            if (res.value != null) {
-              List<String> currentChatIds = List<String>.from(
-                res.value!["chatIds"] ?? [],
-              );
-              currentChatIds.remove(chatId);
-              await zeytin.add(
-                data: ZeytinValue(_myChatsBox, user.uid, {
-                  "chatIds": currentChatIds,
-                }),
-              );
-            }
-          },
         );
+
+        if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+          List<String> currentChatIds = List<String>.from(
+            res.data!['value']["chatIds"] ?? [],
+          );
+          currentChatIds.remove(chatId);
+          await zeytin.add(
+            box: _myChatsBox,
+            tag: user.uid,
+            value: {
+              "chatIds": currentChatIds,
+            },
+          );
+        }
       }
 
-      ZeytinXResponse? response;
-      await zeytin.remove(
-        boxId: _chatsBox,
+      return await zeytin.remove(
+        box: _chatsBox,
         tag: chatId,
-        onSuccess: () => response = ZeytinXResponse(
-          isSuccess: true,
-          message: "Chat deleted",
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
       );
-
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
     } catch (e) {
       return ZeytinXResponse(
         isSuccess: false,
@@ -180,19 +168,22 @@ class ZeytinXChat {
     required ZeytinXUserModel user,
   }) async {
     List<ZeytinXChatModel> userChats = [];
-    await zeytin.get(
-      boxId: _myChatsBox,
+    var indexRes = await zeytin.get(
+      box: _myChatsBox,
       tag: user.uid,
-      onSuccess: (indexRes) async {
-        if (indexRes.value != null && indexRes.value!["chatIds"] != null) {
-          List<String> chatIds = List<String>.from(indexRes.value!["chatIds"]);
-          for (var id in chatIds) {
-            ZeytinXChatModel? chatData = await getChat(chatId: id);
-            if (chatData != null) userChats.add(chatData);
-          }
-        }
-      },
     );
+
+    if (indexRes.isSuccess &&
+        indexRes.data != null &&
+        indexRes.data!['value'] != null &&
+        indexRes.data!['value']["chatIds"] != null) {
+      List<String> chatIds =
+          List<String>.from(indexRes.data!['value']["chatIds"]);
+      for (var id in chatIds) {
+        ZeytinXChatModel? chatData = await getChat(chatId: id);
+        if (chatData != null) userChats.add(chatData);
+      }
+    }
 
     userChats.sort(
       (a, b) => b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp),
@@ -201,15 +192,15 @@ class ZeytinXChat {
   }
 
   Future<ZeytinXChatModel?> getChat({required String chatId}) async {
-    ZeytinXChatModel? chat;
-    await zeytin.get(
-      boxId: _chatsBox,
+    var res = await zeytin.get(
+      box: _chatsBox,
       tag: chatId,
-      onSuccess: (res) {
-        if (res.value != null) chat = ZeytinXChatModel.fromJson(res.value!);
-      },
     );
-    return chat;
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXChatModel.fromJson(res.data!['value']);
+    }
+    return null;
   }
 
   Future<ZeytinXResponse> updateChat({
@@ -238,16 +229,8 @@ class ZeytinXChat {
         moreData: moreData ?? chat.moreData,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_chatsBox, chatId, chat.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Updated"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+      return await zeytin.add(
+          box: _chatsBox, tag: chatId, value: chat.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -295,18 +278,14 @@ class ZeytinXChat {
       participants.add(user);
       final updatedChat = chat.copyWith(participants: participants);
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_chatsBox, chatId, updatedChat.toJson()),
-        onSuccess: () async {
-          await _indexChatForParticipants(chatId, [user]);
-          response = ZeytinXResponse(isSuccess: true, message: "Added");
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      var response = await zeytin.add(
+          box: _chatsBox, tag: chatId, value: updatedChat.toJson());
+
+      if (response.isSuccess) {
+        await _indexChatForParticipants(chatId, [user]);
+      }
+
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -322,39 +301,31 @@ class ZeytinXChat {
         return ZeytinXResponse(isSuccess: false, message: "Chat not found");
       }
 
-      final participants = chat.participants
-          .where((p) => p.uid != user.uid)
-          .toList();
+      final participants =
+          chat.participants.where((p) => p.uid != user.uid).toList();
       final updatedChat = chat.copyWith(participants: participants);
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_chatsBox, chatId, updatedChat.toJson()),
-        onSuccess: () async {
-          await zeytin.get(
-            boxId: _myChatsBox,
-            tag: user.uid,
-            onSuccess: (res) async {
-              if (res.value != null) {
-                List<String> currentChatIds = List<String>.from(
-                  res.value!["chatIds"] ?? [],
-                );
-                currentChatIds.remove(chatId);
-                await zeytin.add(
-                  data: ZeytinValue(_myChatsBox, user.uid, {
-                    "chatIds": currentChatIds,
-                  }),
-                );
-              }
-            },
+      var response = await zeytin.add(
+          box: _chatsBox, tag: chatId, value: updatedChat.toJson());
+
+      if (response.isSuccess) {
+        var res = await zeytin.get(
+          box: _myChatsBox,
+          tag: user.uid,
+        );
+
+        if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+          List<String> currentChatIds = List<String>.from(
+            res.data!['value']["chatIds"] ?? [],
           );
-          response = ZeytinXResponse(isSuccess: true, message: "Removed");
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+          currentChatIds.remove(chatId);
+          await zeytin.add(box: _myChatsBox, tag: user.uid, value: {
+            "chatIds": currentChatIds,
+          });
+        }
+      }
+
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -382,18 +353,9 @@ class ZeytinXChat {
       }
 
       chat = chat.copyWith(typingUsers: typingUsers);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_chatsBox, chatId, chat.toJson()),
-        onSuccess: () => response = ZeytinXResponse(
-          isSuccess: true,
-          message: "Updated typing status",
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+
+      return await zeytin.add(
+          box: _chatsBox, tag: chatId, value: chat.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -410,16 +372,8 @@ class ZeytinXChat {
       }
 
       chat = chat.copyWith(unreadCount: count);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_chatsBox, chatId, chat.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Updated"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+      return await zeytin.add(
+          box: _chatsBox, tag: chatId, value: chat.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -443,9 +397,8 @@ class ZeytinXChat {
     try {
       final messageId = _uuid.v4();
       final now = DateTime.now();
-      final selfDestructTimestamp = selfDestructTimer != null
-          ? now.add(selfDestructTimer)
-          : null;
+      final selfDestructTimestamp =
+          selfDestructTimer != null ? now.add(selfDestructTimer) : null;
 
       final message = ZeytinXMessage(
         messageId: messageId,
@@ -467,22 +420,18 @@ class ZeytinXChat {
         metadata: metadata,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () async {
-          await _updateChatLastMessage(chatId, message, sender);
-          ZeytinXChatModel? chat = await getChat(chatId: chatId);
-          if (chat != null) {
-            await _indexChatForParticipants(chatId, chat.participants);
-          }
-          response = ZeytinXResponse(isSuccess: true, message: "Sent");
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      var response = await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
+
+      if (response.isSuccess) {
+        await _updateChatLastMessage(chatId, message, sender);
+        ZeytinXChatModel? chat = await getChat(chatId: chatId);
+        if (chat != null) {
+          await _indexChatForParticipants(chatId, chat.participants);
+        }
+      }
+
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -494,7 +443,7 @@ class ZeytinXChat {
     required Function(ZeytinXChatModel chat) onChatUpdated,
     required Function(String chatId) onChatDeleted,
   }) {
-    return zeytin.changes.listen((event) {
+    return zeytin.observer.listen((event) {
       if (event['boxId'] != _chatsBox) return;
 
       final op = event["op"];
@@ -527,7 +476,7 @@ class ZeytinXChat {
     required Function(ZeytinXMessage message) onMessageUpdated,
     required Function(String messageId) onMessageDeleted,
   }) {
-    return zeytin.changes.listen((event) {
+    return zeytin.observer.listen((event) {
       if (event['boxId'] != _messagesBox) return;
 
       final op = event["op"];
@@ -564,17 +513,18 @@ class ZeytinXChat {
     int? offset,
   }) async {
     List<ZeytinXMessage> messages = [];
-    await zeytin.filter(
-      boxId: _messagesBox,
+    var res = await zeytin.filter(
+      box: _messagesBox,
       predicate: (data) => data["chatId"] == chatId,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            messages.add(ZeytinXMessage.fromJson(item.value!));
-          }
-        }
-      },
     );
+
+    if (res.isSuccess && res.data != null && res.data!['results'] != null) {
+      for (var item in res.data!['results']) {
+        if (item['value'] != null) {
+          messages.add(ZeytinXMessage.fromJson(item['value']));
+        }
+      }
+    }
 
     messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     final startIndex = offset ?? 0;
@@ -587,15 +537,15 @@ class ZeytinXChat {
   }
 
   Future<ZeytinXMessage?> getMessage({required String messageId}) async {
-    ZeytinXMessage? message;
-    await zeytin.get(
-      boxId: _messagesBox,
+    var res = await zeytin.get(
+      box: _messagesBox,
       tag: messageId,
-      onSuccess: (res) {
-        if (res.value != null) message = ZeytinXMessage.fromJson(res.value!);
-      },
     );
-    return message;
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXMessage.fromJson(res.data!['value']);
+    }
+    return null;
   }
 
   Future<ZeytinXResponse> editMessage({
@@ -620,16 +570,8 @@ class ZeytinXChat {
         editedTimestamp: DateTime.now(),
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Edited"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -654,16 +596,8 @@ class ZeytinXChat {
         deletedForEveryone: deleteForEveryone,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Deleted"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -700,22 +634,16 @@ class ZeytinXChat {
         mentions: originalMessage.mentions,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(
-          _messagesBox,
-          newMessageId,
-          forwardedMessage.toJson(),
-        ),
-        onSuccess: () async {
-          await _updateChatLastMessage(targetChatId, forwardedMessage, sender);
-          response = ZeytinXResponse(isSuccess: true, message: "Forwarded");
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      var response = await zeytin.add(
+          box: _messagesBox,
+          tag: newMessageId,
+          value: forwardedMessage.toJson());
+
+      if (response.isSuccess) {
+        await _updateChatLastMessage(targetChatId, forwardedMessage, sender);
+      }
+
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -748,16 +676,8 @@ class ZeytinXChat {
     if (!starredBy.contains(userId)) {
       starredBy.add(userId);
       message = message.copyWith(starredBy: starredBy);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Starred"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Already starred");
   }
@@ -775,16 +695,8 @@ class ZeytinXChat {
     if (starredBy.contains(userId)) {
       starredBy.remove(userId);
       message = message.copyWith(starredBy: starredBy);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Unstarred"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Not starred");
   }
@@ -793,17 +705,19 @@ class ZeytinXChat {
     required String userId,
   }) async {
     List<ZeytinXMessage> starred = [];
-    await zeytin.getBox(
-      boxId: _messagesBox,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            final m = ZeytinXMessage.fromJson(item.value!);
-            if (m.starredBy.contains(userId) && !m.isDeleted) starred.add(m);
-          }
-        }
-      },
+    var res = await zeytin.getBox(
+      box: _messagesBox,
     );
+
+    if (res.isSuccess && res.data != null) {
+      res.data!.forEach((key, value) {
+        if (value != null) {
+          final m = ZeytinXMessage.fromJson(value);
+          if (m.starredBy.contains(userId) && !m.isDeleted) starred.add(m);
+        }
+      });
+    }
+
     starred.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return starred;
   }
@@ -836,20 +750,12 @@ class ZeytinXChat {
       if (!pinnedIDs.contains(messageId)) {
         pinnedIDs.add(messageId);
         chat = chat.copyWith(pinnedMessageIDs: pinnedIDs);
-        await zeytin.add(data: ZeytinValue(_chatsBox, chatId, chat.toJson()));
+        await zeytin.add(box: _chatsBox, tag: chatId, value: chat.toJson());
       }
     }
 
-    ZeytinXResponse? response;
-    await zeytin.add(
-      data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-      onSuccess: () =>
-          response = ZeytinXResponse(isSuccess: true, message: "Pinned"),
-      onError: (e, s) =>
-          response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-    );
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+    return await zeytin.add(
+        box: _messagesBox, tag: messageId, value: message.toJson());
   }
 
   Future<ZeytinXResponse> unpinMessage({
@@ -872,19 +778,11 @@ class ZeytinXChat {
       final pinnedIDs = List<String>.from(chat.pinnedMessageIDs);
       pinnedIDs.remove(messageId);
       chat = chat.copyWith(pinnedMessageIDs: pinnedIDs);
-      await zeytin.add(data: ZeytinValue(_chatsBox, chatId, chat.toJson()));
+      await zeytin.add(box: _chatsBox, tag: chatId, value: chat.toJson());
     }
 
-    ZeytinXResponse? response;
-    await zeytin.add(
-      data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-      onSuccess: () =>
-          response = ZeytinXResponse(isSuccess: true, message: "Unpinned"),
-      onError: (e, s) =>
-          response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-    );
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+    return await zeytin.add(
+        box: _messagesBox, tag: messageId, value: message.toJson());
   }
 
   Future<List<ZeytinXMessage>> getPinnedMessages({
@@ -939,16 +837,8 @@ class ZeytinXChat {
         status: ZeytinXMessageStatus.read,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Read"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Already read");
   }
@@ -974,16 +864,8 @@ class ZeytinXChat {
         status: ZeytinXMessageStatus.delivered,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Delivered"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Already delivered");
   }
@@ -1016,16 +898,8 @@ class ZeytinXChat {
         reactions: ZeytinXMessageReactionsModel(reactions: reactions),
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Reacted"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Already reacted");
   }
@@ -1055,42 +929,34 @@ class ZeytinXChat {
       reactions: ZeytinXMessageReactionsModel(reactions: reactions),
     );
 
-    ZeytinXResponse? response;
-    await zeytin.add(
-      data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-      onSuccess: () => response = ZeytinXResponse(
-        isSuccess: true,
-        message: "Reaction removed",
-      ),
-      onError: (e, s) =>
-          response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-    );
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+    return await zeytin.add(
+        box: _messagesBox, tag: messageId, value: message.toJson());
   }
 
   Future<ZeytinXResponse> processSelfDestructMessages() async {
     try {
       final now = DateTime.now();
-      await zeytin.getBox(
-        boxId: _messagesBox,
-        onSuccess: (results) async {
-          for (var item in results) {
-            if (item.value != null) {
-              final message = ZeytinXMessage.fromJson(item.value!);
-              if (message.selfDestructTimestamp != null &&
-                  message.selfDestructTimestamp!.isBefore(now) &&
-                  !message.isDeleted) {
-                await deleteMessage(
-                  messageId: message.messageId,
-                  userId: message.senderId,
-                  deleteForEveryone: true,
-                );
-              }
+      var res = await zeytin.getBox(
+        box: _messagesBox,
+      );
+
+      if (res.isSuccess && res.data != null) {
+        for (var entry in res.data!.entries) {
+          if (entry.value != null) {
+            final message = ZeytinXMessage.fromJson(entry.value);
+            if (message.selfDestructTimestamp != null &&
+                message.selfDestructTimestamp!.isBefore(now) &&
+                !message.isDeleted) {
+              await deleteMessage(
+                messageId: message.messageId,
+                userId: message.senderId,
+                deleteForEveryone: true,
+              );
             }
           }
-        },
-      );
+        }
+      }
+
       return ZeytinXResponse(isSuccess: true, message: "Processed");
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
@@ -1129,35 +995,26 @@ class ZeytinXChat {
         systemMessageData: systemData,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () async {
-          ZeytinXChatModel? chat = await getChat(chatId: chatId);
-          if (chat != null) {
-            chat = chat.copyWith(
-              lastMessage: _getSystemMessageText(
-                type,
-                userName,
-                oldValue,
-                value,
-              ),
-              lastMessageTimestamp: now,
-            );
-            await zeytin.add(
-              data: ZeytinValue(_chatsBox, chatId, chat.toJson()),
-            );
-          }
-          response = ZeytinXResponse(
-            isSuccess: true,
-            message: "System message sent",
+      var response = await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
+
+      if (response.isSuccess) {
+        ZeytinXChatModel? chat = await getChat(chatId: chatId);
+        if (chat != null) {
+          chat = chat.copyWith(
+            lastMessage: _getSystemMessageText(
+              type,
+              userName,
+              oldValue,
+              value,
+            ),
+            lastMessageTimestamp: now,
           );
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+          await zeytin.add(box: _chatsBox, tag: chatId, value: chat.toJson());
+        }
+      }
+
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -1179,7 +1036,7 @@ class ZeytinXChat {
       lastMessageSender: sender,
     );
 
-    await zeytin.add(data: ZeytinValue(_chatsBox, chatId, chat.toJson()));
+    await zeytin.add(box: _chatsBox, tag: chatId, value: chat.toJson());
   }
 
   String _getSystemMessageText(

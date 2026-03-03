@@ -1,9 +1,8 @@
 import 'package:uuid/uuid.dart';
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 class ZeytinXUser {
-  final ZeytinStorage zeytin;
+  final ZeytinX zeytin;
   static const String _box = 'users';
   final _uuid = const Uuid();
 
@@ -56,28 +55,21 @@ class ZeytinXUser {
           accountCreation: DateTime.now().toIso8601String(),
         );
 
-        ZeytinXResponse? response;
-
-        await zeytin.add(
-          data: ZeytinValue(_box, uid, newUser.toJson()),
-          onSuccess: () {
-            response = ZeytinXResponse(
-              isSuccess: true,
-              message: "ok",
-              data: newUser.toJson(),
-            );
-          },
-          onError: (e, s) {
-            response = ZeytinXResponse(
-              isSuccess: false,
-              message: "Error",
-              error: e.toString(),
-            );
-          },
+        var response = await zeytin.add(
+          box: _box,
+          tag: uid,
+          value: newUser.toJson(),
         );
 
-        return response ??
-            ZeytinXResponse(isSuccess: false, message: "Unknown error");
+        if (response.isSuccess) {
+          return ZeytinXResponse(
+            isSuccess: true,
+            message: "ok",
+            data: newUser.toJson(),
+          );
+        }
+
+        return response;
       }
     } catch (e) {
       return ZeytinXResponse(
@@ -108,28 +100,21 @@ class ZeytinXUser {
       lastLoginTimestamp: DateTime.now().toIso8601String(),
     );
 
-    ZeytinXResponse? response;
-
-    await zeytin.add(
-      data: ZeytinValue(_box, user.uid, updatedUser.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: updatedUser.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    var response = await zeytin.add(
+      box: _box,
+      tag: user.uid,
+      value: updatedUser.toJson(),
     );
 
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
+    if (response.isSuccess) {
+      return ZeytinXResponse(
+        isSuccess: true,
+        message: "ok",
+        data: updatedUser.toJson(),
+      );
+    }
+
+    return response;
   }
 
   Future<ZeytinXResponse> followUser({
@@ -150,39 +135,19 @@ class ZeytinXUser {
       List<String> targetFollowers = List<String>.from(targetUser.followers);
       if (!targetFollowers.contains(myUid)) targetFollowers.add(myUid);
 
-      bool success1 = false;
-      bool success2 = false;
-      String? errorMessage;
-
-      await zeytin.add(
-        data: ZeytinValue(
-          _box,
-          me.uid,
-          me.copyWith(following: myFollowing).toJson(),
-        ),
-        onSuccess: () {
-          success1 = true;
-        },
-        onError: (e, s) {
-          errorMessage = e.toString();
-        },
+      var res1 = await zeytin.add(
+        box: _box,
+        tag: me.uid,
+        value: me.copyWith(following: myFollowing).toJson(),
       );
 
-      await zeytin.add(
-        data: ZeytinValue(
-          _box,
-          targetUid,
-          targetUser.copyWith(followers: targetFollowers).toJson(),
-        ),
-        onSuccess: () {
-          success2 = true;
-        },
-        onError: (e, s) {
-          errorMessage = e.toString();
-        },
+      var res2 = await zeytin.add(
+        box: _box,
+        tag: targetUid,
+        value: targetUser.copyWith(followers: targetFollowers).toJson(),
       );
 
-      if (success1 && success2) {
+      if (res1.isSuccess && res2.isSuccess) {
         return ZeytinXResponse(
           isSuccess: true,
           message: "Followed successfully",
@@ -191,7 +156,7 @@ class ZeytinXUser {
         return ZeytinXResponse(
           isSuccess: false,
           message: "Follow error",
-          error: errorMessage,
+          error: res1.error ?? res2.error,
         );
       }
     } catch (e) {
@@ -230,39 +195,19 @@ class ZeytinXUser {
       List<String> targetFollowers = List<String>.from(targetUser.followers);
       targetFollowers.remove(myUid);
 
-      bool success1 = false;
-      bool success2 = false;
-      String? errorMessage;
-
-      await zeytin.add(
-        data: ZeytinValue(
-          _box,
-          me.uid,
-          me.copyWith(following: myFollowing).toJson(),
-        ),
-        onSuccess: () {
-          success1 = true;
-        },
-        onError: (e, s) {
-          errorMessage = e.toString();
-        },
+      var res1 = await zeytin.add(
+        box: _box,
+        tag: me.uid,
+        value: me.copyWith(following: myFollowing).toJson(),
       );
 
-      await zeytin.add(
-        data: ZeytinValue(
-          _box,
-          targetUid,
-          targetUser.copyWith(followers: targetFollowers).toJson(),
-        ),
-        onSuccess: () {
-          success2 = true;
-        },
-        onError: (e, s) {
-          errorMessage = e.toString();
-        },
+      var res2 = await zeytin.add(
+        box: _box,
+        tag: targetUid,
+        value: targetUser.copyWith(followers: targetFollowers).toJson(),
       );
 
-      if (success1 && success2) {
+      if (res1.isSuccess && res2.isSuccess) {
         return ZeytinXResponse(
           isSuccess: true,
           message: "Unfollowed successfully",
@@ -271,7 +216,7 @@ class ZeytinXUser {
         return ZeytinXResponse(
           isSuccess: false,
           message: "Unfollow error",
-          error: errorMessage,
+          error: res1.error ?? res2.error,
         );
       }
     } catch (e) {
@@ -299,31 +244,26 @@ class ZeytinXUser {
       List<String> myFollowing = List<String>.from(me.following);
       myFollowing.remove(targetUid);
 
-      ZeytinXResponse? response;
-
-      await zeytin.add(
-        data: ZeytinValue(
-          _box,
-          me.uid,
-          me.copyWith(blockedUsers: myBlocked, following: myFollowing).toJson(),
-        ),
-        onSuccess: () {
-          response = ZeytinXResponse(
-            isSuccess: true,
-            message: "User blocked and chat destroyed",
-          );
-        },
-        onError: (e, s) {
-          response = ZeytinXResponse(
-            isSuccess: false,
-            message: "Block error",
-            error: e.toString(),
-          );
-        },
+      var response = await zeytin.add(
+        box: _box,
+        tag: me.uid,
+        value: me
+            .copyWith(blockedUsers: myBlocked, following: myFollowing)
+            .toJson(),
       );
 
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+      if (response.isSuccess) {
+        return ZeytinXResponse(
+          isSuccess: true,
+          message: "User blocked and chat destroyed",
+        );
+      }
+
+      return ZeytinXResponse(
+        isSuccess: false,
+        message: "Block error",
+        error: response.error,
+      );
     } catch (e) {
       return ZeytinXResponse(
         isSuccess: false,
@@ -346,31 +286,24 @@ class ZeytinXUser {
       List<String> myBlocked = List<String>.from(me.blockedUsers);
       myBlocked.remove(targetUid);
 
-      ZeytinXResponse? response;
-
-      await zeytin.add(
-        data: ZeytinValue(
-          _box,
-          me.uid,
-          me.copyWith(blockedUsers: myBlocked).toJson(),
-        ),
-        onSuccess: () {
-          response = ZeytinXResponse(
-            isSuccess: true,
-            message: "User unblocked",
-          );
-        },
-        onError: (e, s) {
-          response = ZeytinXResponse(
-            isSuccess: false,
-            message: "Unblock error",
-            error: e.toString(),
-          );
-        },
+      var response = await zeytin.add(
+        box: _box,
+        tag: me.uid,
+        value: me.copyWith(blockedUsers: myBlocked).toJson(),
       );
 
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+      if (response.isSuccess) {
+        return ZeytinXResponse(
+          isSuccess: true,
+          message: "User unblocked",
+        );
+      }
+
+      return ZeytinXResponse(
+        isSuccess: false,
+        message: "Unblock error",
+        error: response.error,
+      );
     } catch (e) {
       return ZeytinXResponse(
         isSuccess: false,
@@ -434,20 +367,15 @@ class ZeytinXUser {
 
   Future<ZeytinXUserModel?> _getProfile(String userId) async {
     try {
-      ZeytinXUserModel? user;
-
-      await zeytin.get(
-        boxId: _box,
+      var res = await zeytin.get(
+        box: _box,
         tag: userId,
-        onSuccess: (result) {
-          if (result.value != null) {
-            user = ZeytinXUserModel.fromJson(result.value!);
-          }
-        },
-        onError: (e, s) {},
       );
 
-      return user;
+      if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+        return ZeytinXUserModel.fromJson(res.data!['value']);
+      }
+      return null;
     } catch (e) {
       return null;
     }
@@ -461,17 +389,17 @@ class ZeytinXUser {
     try {
       List<ZeytinXUserModel> users = [];
 
-      await zeytin.getBox(
-        boxId: _box,
-        onSuccess: (results) {
-          for (var element in results) {
-            if (element.value != null) {
-              users.add(ZeytinXUserModel.fromJson(element.value!));
-            }
-          }
-        },
-        onError: (e, s) {},
+      var res = await zeytin.getBox(
+        box: _box,
       );
+
+      if (res.isSuccess && res.data != null) {
+        res.data!.forEach((key, value) {
+          if (value != null) {
+            users.add(ZeytinXUserModel.fromJson(value));
+          }
+        });
+      }
 
       return users;
     } catch (e) {
@@ -484,28 +412,20 @@ class ZeytinXUser {
     ZeytinXUserModel newUser,
   ) async {
     try {
-      ZeytinXResponse? response;
-
-      await zeytin.add(
-        data: ZeytinValue(_box, user.uid, newUser.toJson()),
-        onSuccess: () {
-          response = ZeytinXResponse(
-            isSuccess: true,
-            message: "ok",
-            data: newUser.toJson(),
-          );
-        },
-        onError: (e, s) {
-          response = ZeytinXResponse(
-            isSuccess: false,
-            message: e.toString(),
-            error: e.toString(),
-          );
-        },
+      var response = await zeytin.add(
+        box: _box,
+        tag: user.uid,
+        value: newUser.toJson(),
       );
 
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+      if (response.isSuccess) {
+        return ZeytinXResponse(
+          isSuccess: true,
+          message: "ok",
+          data: newUser.toJson(),
+        );
+      }
+      return response;
     } catch (e) {
       return ZeytinXResponse(
         isSuccess: false,

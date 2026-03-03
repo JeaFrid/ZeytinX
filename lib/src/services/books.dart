@@ -1,9 +1,8 @@
 import 'package:uuid/uuid.dart';
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 class ZeytinXLibrary {
-  final ZeytinStorage zeytin;
+  final ZeytinX zeytin;
   static const String _booksBox = 'books';
   static const String _chaptersBox = 'chapters';
   final _uuid = const Uuid();
@@ -15,97 +14,45 @@ class ZeytinXLibrary {
   }) async {
     String id = _uuid.v1();
     var newBook = bookModel.copyWith(id: id);
-    ZeytinXResponse? response;
 
-    await zeytin.add(
-      data: ZeytinValue(_booksBox, id, newBook.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newBook.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _booksBox,
+      tag: id,
+      value: newBook.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> deleteBook({required String id}) async {
-    ZeytinXResponse? response;
-
-    await zeytin.remove(
-      boxId: _booksBox,
+    return await zeytin.remove(
+      box: _booksBox,
       tag: id,
-      onSuccess: () {
-        response = ZeytinXResponse(isSuccess: true, message: "ok");
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> editBook({
     required String id,
     required ZeytinXBookModel bookModel,
   }) async {
-    ZeytinXResponse? response;
     var newBook = bookModel.copyWith(id: id);
 
-    await zeytin.add(
-      data: ZeytinValue(_booksBox, id, newBook.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newBook.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _booksBox,
+      tag: id,
+      value: newBook.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXBookModel> getBook({required String id}) async {
-    ZeytinXBookModel? book;
-
-    await zeytin.get(
-      boxId: _booksBox,
+    var res = await zeytin.get(
+      box: _booksBox,
       tag: id,
-      onSuccess: (result) {
-        if (result.value != null) {
-          book = ZeytinXBookModel.fromJson(result.value!);
-        }
-      },
-      onError: (e, s) {},
     );
 
-    // Eğer kitap bulunamazsa uygulamanın çökmesini engellemek için boş model dönüyoruz
-    return book ?? ZeytinXBookModel.empty();
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXBookModel.fromJson(res.data!['value']);
+    }
+
+    return ZeytinXBookModel.empty();
   }
 
   Future<ZeytinXResponse> addChapter({
@@ -113,50 +60,19 @@ class ZeytinXLibrary {
   }) async {
     String id = _uuid.v1();
     var newChapter = chapter.copyWith(id: id);
-    ZeytinXResponse? response;
 
-    await zeytin.add(
-      data: ZeytinValue(_chaptersBox, id, newChapter.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newChapter.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _chaptersBox,
+      tag: id,
+      value: newChapter.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> deleteChapter({required String id}) async {
-    ZeytinXResponse? response;
-
-    await zeytin.remove(
-      boxId: _chaptersBox,
+    return await zeytin.remove(
+      box: _chaptersBox,
       tag: id,
-      onSuccess: () {
-        response = ZeytinXResponse(isSuccess: true, message: "ok");
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<List<ZeytinXChapterModel>> getBookChapters({
@@ -164,20 +80,18 @@ class ZeytinXLibrary {
   }) async {
     List<ZeytinXChapterModel> list = [];
 
-    await zeytin.filter(
-      boxId: _chaptersBox,
+    var res = await zeytin.filter(
+      box: _chaptersBox,
       predicate: (data) => data["bookId"] == bookID,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            list.add(ZeytinXChapterModel.fromJson(item.value!));
-          }
-        }
-      },
-      onError: (e, s) {
-        ZeytinXPrint.errorPrint(e.toString());
-      },
     );
+
+    if (res.isSuccess && res.data != null && res.data!['results'] != null) {
+      for (var item in res.data!['results']) {
+        if (item['value'] != null) {
+          list.add(ZeytinXChapterModel.fromJson(item['value']));
+        }
+      }
+    }
 
     list.sort((a, b) => a.order.compareTo(b.order));
     return list;
@@ -187,47 +101,29 @@ class ZeytinXLibrary {
     required String id,
     required ZeytinXChapterModel chapter,
   }) async {
-    ZeytinXResponse? response;
     var updatedChapter = chapter.copyWith(id: id);
 
-    await zeytin.add(
-      data: ZeytinValue(_chaptersBox, id, updatedChapter.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: updatedChapter.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _chaptersBox,
+      tag: id,
+      value: updatedChapter.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<List<ZeytinXBookModel>> getAllBooks() async {
     List<ZeytinXBookModel> list = [];
 
-    await zeytin.getBox(
-      boxId: _booksBox,
-      onSuccess: (results) {
-        for (var element in results) {
-          if (element.value != null) {
-            list.add(ZeytinXBookModel.fromJson(element.value!));
-          }
-        }
-      },
-      onError: (e, s) {
-        ZeytinXPrint.errorPrint(e.toString());
-      },
+    var res = await zeytin.getBox(
+      box: _booksBox,
     );
+
+    if (res.isSuccess && res.data != null) {
+      res.data!.forEach((key, value) {
+        if (value != null) {
+          list.add(ZeytinXBookModel.fromJson(value));
+        }
+      });
+    }
 
     return list;
   }
@@ -273,9 +169,8 @@ class ZeytinXLibrary {
     ZeytinXBookModel book = await getBook(id: bookID);
     var moreData = Map<String, dynamic>.from(book.moreData ?? {});
     List<dynamic> commentsRaw = moreData["comments"] ?? [];
-    List<ZeytinXBookCommentModel> comments = commentsRaw
-        .map((e) => ZeytinXBookCommentModel.fromJson(e))
-        .toList();
+    List<ZeytinXBookCommentModel> comments =
+        commentsRaw.map((e) => ZeytinXBookCommentModel.fromJson(e)).toList();
 
     comments.add(comment.copyWith(id: _uuid.v1(), bookID: bookID));
     moreData["comments"] = comments.map((e) => e.toJson()).toList();
@@ -294,9 +189,8 @@ class ZeytinXLibrary {
     var moreData = Map<String, dynamic>.from(book.moreData ?? {});
     List<dynamic> commentsRaw = moreData["comments"] ?? [];
 
-    List<ZeytinXBookCommentModel> comments = commentsRaw
-        .map((e) => ZeytinXBookCommentModel.fromJson(e))
-        .toList();
+    List<ZeytinXBookCommentModel> comments =
+        commentsRaw.map((e) => ZeytinXBookCommentModel.fromJson(e)).toList();
 
     comments.removeWhere((element) => element.id == commentID);
     moreData["comments"] = comments.map((e) => e.toJson()).toList();
@@ -318,21 +212,19 @@ class ZeytinXLibrary {
   Future<List<ZeytinXBookModel>> searchByISBN(String isbn) async {
     List<ZeytinXBookModel> results = [];
 
-    await zeytin.search(
-      boxId: _booksBox,
+    var res = await zeytin.search(
+      box: _booksBox,
       field: "isbn",
       prefix: isbn,
-      onSuccess: (list) {
-        for (var item in list) {
-          if (item.value != null) {
-            results.add(ZeytinXBookModel.fromJson(item.value!));
-          }
-        }
-      },
-      onError: (e, s) {
-        ZeytinXPrint.errorPrint(e.toString());
-      },
     );
+
+    if (res.isSuccess && res.data != null && res.data!['results'] != null) {
+      for (var item in res.data!['results']) {
+        if (item['value'] != null) {
+          results.add(ZeytinXBookModel.fromJson(item['value']));
+        }
+      }
+    }
 
     return results;
   }

@@ -1,9 +1,8 @@
 import 'package:uuid/uuid.dart';
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 class ZeytinXProducts {
-  final ZeytinStorage zeytin;
+  final ZeytinX zeytin;
   static const String _box = 'products';
   final _uuid = const Uuid();
 
@@ -14,113 +13,60 @@ class ZeytinXProducts {
   }) async {
     String id = _uuid.v1();
     var newProduct = productModel.copyWith(id: id, createdAt: DateTime.now());
-    ZeytinXResponse? response;
 
-    await zeytin.add(
-      data: ZeytinValue(_box, id, newProduct.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newProduct.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _box,
+      tag: id,
+      value: newProduct.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> deleteProduct({required String id}) async {
-    ZeytinXResponse? response;
-
-    await zeytin.remove(
-      boxId: _box,
+    return await zeytin.remove(
+      box: _box,
       tag: id,
-      onSuccess: () {
-        response = ZeytinXResponse(isSuccess: true, message: "ok");
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> updateProduct({
     required String id,
     required ZeytinXProductModel productModel,
   }) async {
-    ZeytinXResponse? response;
     var newProduct = productModel.copyWith(id: id);
 
-    await zeytin.add(
-      data: ZeytinValue(_box, id, newProduct.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newProduct.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _box,
+      tag: id,
+      value: newProduct.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXProductModel> getProduct({required String id}) async {
-    ZeytinXProductModel? product;
-
-    await zeytin.get(
-      boxId: _box,
+    var res = await zeytin.get(
+      box: _box,
       tag: id,
-      onSuccess: (result) {
-        if (result.value != null) {
-          product = ZeytinXProductModel.fromJson(result.value!);
-        }
-      },
-      onError: (e, s) {},
     );
-    return product ?? ZeytinXProductModel.empty();
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXProductModel.fromJson(res.data!['value']);
+    }
+    return ZeytinXProductModel.empty();
   }
 
   Future<List<ZeytinXProductModel>> getAllProducts() async {
     List<ZeytinXProductModel> list = [];
 
-    await zeytin.getBox(
-      boxId: _box,
-      onSuccess: (results) {
-        for (var element in results) {
-          if (element.value != null) {
-            list.add(ZeytinXProductModel.fromJson(element.value!));
-          }
-        }
-      },
-      onError: (e, s) {
-        ZeytinXPrint.errorPrint(e.toString());
-      },
+    var res = await zeytin.getBox(
+      box: _box,
     );
+
+    if (res.isSuccess && res.data != null) {
+      res.data!.forEach((key, value) {
+        if (value != null) {
+          list.add(ZeytinXProductModel.fromJson(value));
+        }
+      });
+    }
 
     return list;
   }

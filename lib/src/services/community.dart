@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'package:uuid/uuid.dart';
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 class ZeytinXCommunity {
-  final ZeytinStorage zeytin;
+  final ZeytinX zeytin;
   static const String _communityBox = 'communities';
   static const String _messagesBox = 'messages';
   static const String _roomsBox = 'community_rooms';
@@ -41,32 +40,22 @@ class ZeytinXCommunity {
         moreData: moreDataMap?.toString(),
       );
 
-      ZeytinXResponse? response;
-
-      await zeytin.add(
-        data: ZeytinValue(_communityBox, communityId, newCommunity.toJson()),
-        onSuccess: () {
-          response = ZeytinXResponse(
-            isSuccess: true,
-            message: "Community created successfully",
-            data: newCommunity.toJson(),
-          );
-        },
-        onError: (e, s) {
-          response = ZeytinXResponse(isSuccess: false, message: e.toString());
-        },
+      var response = await zeytin.add(
+        box: _communityBox,
+        tag: communityId,
+        value: newCommunity.toJson(),
       );
 
-      if (response != null && response!.isSuccess) {
+      if (response.isSuccess) {
         await _indexCommunityForParticipants(communityId, participants);
-        return response!;
+        return ZeytinXResponse(
+          isSuccess: true,
+          message: "Community created successfully",
+          data: newCommunity.toJson(),
+        );
       }
 
-      return response ??
-          ZeytinXResponse(
-            isSuccess: false,
-            message: "Error creating community",
-          );
+      return response;
     } catch (e) {
       return ZeytinXResponse(
         isSuccess: false,
@@ -80,16 +69,7 @@ class ZeytinXCommunity {
     required ZeytinXUserModel admin,
   }) async {
     try {
-      ZeytinXCommunityModel? community;
-      await zeytin.get(
-        boxId: _communityBox,
-        tag: communityId,
-        onSuccess: (result) {
-          if (result.value != null) {
-            community = ZeytinXCommunityModel.fromJson(result.value!);
-          }
-        },
-      );
+      ZeytinXCommunityModel? community = await getCommunity(id: communityId);
 
       if (community == null) {
         return ZeytinXResponse(
@@ -98,68 +78,60 @@ class ZeytinXCommunity {
         );
       }
 
-      if (!community!.admins.any((a) => a.uid == admin.uid)) {
+      if (!community.admins.any((a) => a.uid == admin.uid)) {
         return ZeytinXResponse(isSuccess: false, message: "Not authorized");
       }
 
-      await zeytin.filter(
-        boxId: _messagesBox,
+      var messagesRes = await zeytin.filter(
+        box: _messagesBox,
         predicate: (data) => data["chatId"] == communityId,
-        onSuccess: (results) async {
-          for (var item in results) {
-            await zeytin.remove(boxId: _messagesBox, tag: item.tag);
-          }
-        },
       );
+
+      if (messagesRes.isSuccess &&
+          messagesRes.data != null &&
+          messagesRes.data!['results'] != null) {
+        for (var item in messagesRes.data!['results']) {
+          if (item['tag'] != null) {
+            await zeytin.remove(box: _messagesBox, tag: item['tag']);
+          }
+        }
+      }
 
       final rooms = await getCommunityRooms(communityId: communityId);
       for (var room in rooms) {
-        await zeytin.remove(boxId: _roomsBox, tag: room.id);
+        await zeytin.remove(box: _roomsBox, tag: room.id);
       }
 
       final posts = await getBoardPosts(communityId: communityId);
       for (var post in posts) {
-        await zeytin.remove(boxId: _boardsBox, tag: post.id);
+        await zeytin.remove(box: _boardsBox, tag: post.id);
       }
 
-      for (var user in community!.participants) {
-        await zeytin.get(
-          boxId: _myCommunitiesBox,
+      for (var user in community.participants) {
+        var userComsRes = await zeytin.get(
+          box: _myCommunitiesBox,
           tag: user.uid,
-          onSuccess: (userComsRes) async {
-            if (userComsRes.value != null) {
-              List<String> currentIds = List<String>.from(
-                userComsRes.value!["communityIds"] ?? [],
-              );
-              if (currentIds.contains(communityId)) {
-                currentIds.remove(communityId);
-                await zeytin.add(
-                  data: ZeytinValue(_myCommunitiesBox, user.uid, {
-                    "communityIds": currentIds,
-                  }),
-                );
-              }
-            }
-          },
         );
+
+        if (userComsRes.isSuccess &&
+            userComsRes.data != null &&
+            userComsRes.data!['value'] != null) {
+          List<String> currentIds = List<String>.from(
+            userComsRes.data!['value']["communityIds"] ?? [],
+          );
+          if (currentIds.contains(communityId)) {
+            currentIds.remove(communityId);
+            await zeytin.add(box: _myCommunitiesBox, tag: user.uid, value: {
+              "communityIds": currentIds,
+            });
+          }
+        }
       }
 
-      ZeytinXResponse? finalResponse;
-      await zeytin.remove(
-        boxId: _communityBox,
+      return await zeytin.remove(
+        box: _communityBox,
         tag: communityId,
-        onSuccess: () => finalResponse = ZeytinXResponse(
-          isSuccess: true,
-          message: "Deleted",
-        ),
-        onError: (e, s) => finalResponse = ZeytinXResponse(
-          isSuccess: false,
-          message: e.toString(),
-        ),
       );
-
-      return finalResponse ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -174,16 +146,7 @@ class ZeytinXCommunity {
     Map<String, dynamic>? moreData,
   }) async {
     try {
-      ZeytinXCommunityModel? community;
-      await zeytin.get(
-        boxId: _communityBox,
-        tag: communityId,
-        onSuccess: (result) {
-          if (result.value != null) {
-            community = ZeytinXCommunityModel.fromJson(result.value!);
-          }
-        },
-      );
+      ZeytinXCommunityModel? community = await getCommunity(id: communityId);
 
       if (community == null) {
         return ZeytinXResponse(
@@ -192,7 +155,7 @@ class ZeytinXCommunity {
         );
       }
 
-      if (!community!.admins.any((a) => a.uid == admin.uid)) {
+      if (!community.admins.any((a) => a.uid == admin.uid)) {
         return ZeytinXResponse(isSuccess: false, message: "Not authorized");
       }
 
@@ -211,20 +174,21 @@ class ZeytinXCommunity {
         moreData: moreData ?? {},
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_invitesBox, code, invite.toJson()),
-        onSuccess: () => response = ZeytinXResponse(
+      var response = await zeytin.add(
+        box: _invitesBox,
+        tag: code,
+        value: invite.toJson(),
+      );
+
+      if (response.isSuccess) {
+        return ZeytinXResponse(
           isSuccess: true,
           message: "Created",
           data: invite.toJson(),
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
+        );
+      }
 
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -234,47 +198,39 @@ class ZeytinXCommunity {
     required String communityId,
   }) async {
     List<ZeytinXCommunityInviteModel> invites = [];
-    await zeytin.filter(
-      boxId: _invitesBox,
+    var res = await zeytin.filter(
+      box: _invitesBox,
       predicate: (data) => data["communityId"] == communityId,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            invites.add(ZeytinXCommunityInviteModel.fromJson(item.value!));
-          }
-        }
-      },
     );
+
+    if (res.isSuccess && res.data != null && res.data!['results'] != null) {
+      for (var item in res.data!['results']) {
+        if (item['value'] != null) {
+          invites.add(ZeytinXCommunityInviteModel.fromJson(item['value']));
+        }
+      }
+    }
     return invites;
   }
 
   Future<ZeytinXResponse> validateInviteCode({required String code}) async {
     try {
-      ZeytinXCommunityInviteModel? invite;
-      await zeytin.get(
-        boxId: _invitesBox,
-        tag: code,
-        onSuccess: (res) {
-          if (res.value != null) {
-            invite = ZeytinXCommunityInviteModel.fromJson(res.value!);
-          }
-        },
-      );
+      ZeytinXCommunityInviteModel? invite = await getInvite(code: code);
 
       if (invite == null) {
         return ZeytinXResponse(isSuccess: false, message: "Invalid code");
       }
-      if (invite!.isExpired) {
+      if (invite.isExpired) {
         return ZeytinXResponse(isSuccess: false, message: "Code expired");
       }
-      if (invite!.isQuotaExceeded) {
+      if (invite.isQuotaExceeded) {
         return ZeytinXResponse(isSuccess: false, message: "Quota exceeded");
       }
 
       return ZeytinXResponse(
         isSuccess: true,
         message: "Valid",
-        data: invite!.toJson(),
+        data: invite.toJson(),
       );
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
@@ -282,17 +238,15 @@ class ZeytinXCommunity {
   }
 
   Future<ZeytinXCommunityInviteModel?> getInvite({required String code}) async {
-    ZeytinXCommunityInviteModel? invite;
-    await zeytin.get(
-      boxId: _invitesBox,
+    var res = await zeytin.get(
+      box: _invitesBox,
       tag: code,
-      onSuccess: (res) {
-        if (res.value != null) {
-          invite = ZeytinXCommunityInviteModel.fromJson(res.value!);
-        }
-      },
     );
-    return invite;
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXCommunityInviteModel.fromJson(res.data!['value']);
+    }
+    return null;
   }
 
   Future<ZeytinXResponse> useInviteCode({required String code}) async {
@@ -310,16 +264,11 @@ class ZeytinXCommunity {
 
       invite = invite.copyWith(usedCount: invite.usedCount + 1);
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_invitesBox, code, invite.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Used"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
+      return await zeytin.add(
+        box: _invitesBox,
+        tag: code,
+        value: invite.toJson(),
       );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -342,17 +291,10 @@ class ZeytinXCommunity {
         return ZeytinXResponse(isSuccess: false, message: "Not authorized");
       }
 
-      ZeytinXResponse? response;
-      await zeytin.remove(
-        boxId: _invitesBox,
+      return await zeytin.remove(
+        box: _invitesBox,
         tag: code,
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Deleted"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
       );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -388,52 +330,43 @@ class ZeytinXCommunity {
         createdAt: DateTime.now(),
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_roomsBox, roomId, newRoom.toJson()),
-        onSuccess: () => response = ZeytinXResponse(
-          isSuccess: true,
-          message: "Room Created",
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown error");
+      return await zeytin.add(
+          box: _roomsBox, tag: roomId, value: newRoom.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
   }
 
   Future<ZeytinXCommunityRoomModel?> getRoom({required String roomId}) async {
-    ZeytinXCommunityRoomModel? room;
-    await zeytin.get(
-      boxId: _roomsBox,
+    var res = await zeytin.get(
+      box: _roomsBox,
       tag: roomId,
-      onSuccess: (res) {
-        if (res.value != null) {
-          room = ZeytinXCommunityRoomModel.fromJson(res.value!);
-        }
-      },
     );
-    return room;
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXCommunityRoomModel.fromJson(res.data!['value']);
+    }
+
+    return null;
   }
 
   Future<List<ZeytinXCommunityRoomModel>> getCommunityRooms({
     required String communityId,
   }) async {
     List<ZeytinXCommunityRoomModel> rooms = [];
-    await zeytin.filter(
-      boxId: _roomsBox,
+    var res = await zeytin.filter(
+      box: _roomsBox,
       predicate: (data) => data["communityId"] == communityId,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            rooms.add(ZeytinXCommunityRoomModel.fromJson(item.value!));
-          }
-        }
-      },
     );
+
+    if (res.isSuccess && res.data != null && res.data!['results'] != null) {
+      for (var item in res.data!['results']) {
+        if (item['value'] != null) {
+          rooms.add(ZeytinXCommunityRoomModel.fromJson(item['value']));
+        }
+      }
+    }
+
     rooms.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return rooms;
   }
@@ -463,20 +396,10 @@ class ZeytinXCommunity {
         );
       }
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(
-          _communityBox,
-          communityId,
-          updatedCommunity.toJson(),
-        ),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Updated"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _communityBox,
+          tag: communityId,
+          value: updatedCommunity.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -484,16 +407,18 @@ class ZeytinXCommunity {
 
   Future<List<ZeytinXCommunityModel>> getAllCommunities() async {
     List<ZeytinXCommunityModel> list = [];
-    await zeytin.getBox(
-      boxId: _communityBox,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            list.add(ZeytinXCommunityModel.fromJson(item.value!));
-          }
-        }
-      },
+    var res = await zeytin.getBox(
+      box: _communityBox,
     );
+
+    if (res.isSuccess && res.data != null) {
+      res.data!.forEach((key, value) {
+        if (value != null) {
+          list.add(ZeytinXCommunityModel.fromJson(value));
+        }
+      });
+    }
+
     list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   }
@@ -503,26 +428,26 @@ class ZeytinXCommunity {
     List<ZeytinXUserModel> participants,
   ) async {
     for (var user in participants) {
-      await zeytin.get(
-        boxId: _myCommunitiesBox,
+      var userCommunitiesRes = await zeytin.get(
+        box: _myCommunitiesBox,
         tag: user.uid,
-        onSuccess: (userCommunitiesRes) async {
-          List<String> currentCommunityIds = [];
-          if (userCommunitiesRes.value != null) {
-            currentCommunityIds = List<String>.from(
-              userCommunitiesRes.value!["communityIds"] ?? [],
-            );
-          }
-          if (!currentCommunityIds.contains(communityId)) {
-            currentCommunityIds.add(communityId);
-            await zeytin.add(
-              data: ZeytinValue(_myCommunitiesBox, user.uid, {
-                "communityIds": currentCommunityIds,
-              }),
-            );
-          }
-        },
       );
+
+      List<String> currentCommunityIds = [];
+      if (userCommunitiesRes.isSuccess &&
+          userCommunitiesRes.data != null &&
+          userCommunitiesRes.data!['value'] != null) {
+        currentCommunityIds = List<String>.from(
+          userCommunitiesRes.data!['value']["communityIds"] ?? [],
+        );
+      }
+
+      if (!currentCommunityIds.contains(communityId)) {
+        currentCommunityIds.add(communityId);
+        await zeytin.add(box: _myCommunitiesBox, tag: user.uid, value: {
+          "communityIds": currentCommunityIds,
+        });
+      }
     }
   }
 
@@ -544,18 +469,8 @@ class ZeytinXCommunity {
       }
 
       community = community.copyWith(rules: rules);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_communityBox, communityId, community.toJson()),
-        onSuccess: () => response = ZeytinXResponse(
-          isSuccess: true,
-          message: "Rules Updated",
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _communityBox, tag: communityId, value: community.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -584,18 +499,8 @@ class ZeytinXCommunity {
       }
 
       community = community.copyWith(stickers: stickers);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_communityBox, communityId, community.toJson()),
-        onSuccess: () => response = ZeytinXResponse(
-          isSuccess: true,
-          message: "Stickers Updated",
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _communityBox, tag: communityId, value: community.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -624,28 +529,21 @@ class ZeytinXCommunity {
       }
 
       bool postExists = false;
-      await zeytin.get(
-        boxId: _boardsBox,
+      var res = await zeytin.get(
+        box: _boardsBox,
         tag: postId,
-        onSuccess: (res) {
-          if (res.value != null) postExists = true;
-        },
       );
+      if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+        postExists = true;
+      }
+
       if (!postExists) {
         return ZeytinXResponse(isSuccess: false, message: "Post not found");
       }
 
       community = community.copyWith(pinnedPostID: postId);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_communityBox, communityId, community.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Post Pinned"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _communityBox, tag: communityId, value: community.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -668,18 +566,8 @@ class ZeytinXCommunity {
       }
 
       community = community.copyWith(pinnedPostID: null);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_communityBox, communityId, community.toJson()),
-        onSuccess: () => response = ZeytinXResponse(
-          isSuccess: true,
-          message: "Pinned Post Removed",
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _communityBox, tag: communityId, value: community.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -692,17 +580,15 @@ class ZeytinXCommunity {
       ZeytinXCommunityModel? community = await getCommunity(id: communityId);
       if (community == null || community.pinnedPostID == null) return null;
 
-      ZeytinXCommunityBoardPostModel? post;
-      await zeytin.get(
-        boxId: _boardsBox,
+      var res = await zeytin.get(
+        box: _boardsBox,
         tag: community.pinnedPostID!,
-        onSuccess: (res) {
-          if (res.value != null) {
-            post = ZeytinXCommunityBoardPostModel.fromJson(res.value!);
-          }
-        },
       );
-      return post;
+
+      if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+        return ZeytinXCommunityBoardPostModel.fromJson(res.data!['value']);
+      }
+      return null;
     } catch (e) {
       return null;
     }
@@ -712,30 +598,32 @@ class ZeytinXCommunity {
     required ZeytinXUserModel user,
   }) async {
     List<ZeytinXCommunityModel> userCommunities = [];
-    await zeytin.get(
-      boxId: _myCommunitiesBox,
+    var indexRes = await zeytin.get(
+      box: _myCommunitiesBox,
       tag: user.uid,
-      onSuccess: (indexRes) async {
-        if (indexRes.value != null) {
-          List<String> communityIds = List<String>.from(
-            indexRes.value!["communityIds"] ?? [],
-          );
-          for (var id in communityIds) {
-            await zeytin.get(
-              boxId: _communityBox,
-              tag: id,
-              onSuccess: (communityData) {
-                if (communityData.value != null) {
-                  userCommunities.add(
-                    ZeytinXCommunityModel.fromJson(communityData.value!),
-                  );
-                }
-              },
-            );
-          }
-        }
-      },
     );
+
+    if (indexRes.isSuccess &&
+        indexRes.data != null &&
+        indexRes.data!['value'] != null) {
+      List<String> communityIds = List<String>.from(
+        indexRes.data!['value']["communityIds"] ?? [],
+      );
+      for (var id in communityIds) {
+        var communityData = await zeytin.get(
+          box: _communityBox,
+          tag: id,
+        );
+        if (communityData.isSuccess &&
+            communityData.data != null &&
+            communityData.data!['value'] != null) {
+          userCommunities.add(
+            ZeytinXCommunityModel.fromJson(communityData.data!['value']),
+          );
+        }
+      }
+    }
+
     userCommunities.sort(
       (a, b) => b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp),
     );
@@ -743,17 +631,15 @@ class ZeytinXCommunity {
   }
 
   Future<ZeytinXCommunityModel?> getCommunity({required String id}) async {
-    ZeytinXCommunityModel? community;
-    await zeytin.get(
-      boxId: _communityBox,
+    var res = await zeytin.get(
+      box: _communityBox,
       tag: id,
-      onSuccess: (res) {
-        if (res.value != null) {
-          community = ZeytinXCommunityModel.fromJson(res.value!);
-        }
-      },
     );
-    return community;
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXCommunityModel.fromJson(res.data!['value']);
+    }
+    return null;
   }
 
   Future<bool?> isParticipant({
@@ -795,22 +681,15 @@ class ZeytinXCommunity {
       participants.add(user);
       final updatedCommunity = community.copyWith(participants: participants);
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(
-          _communityBox,
-          communityId,
-          updatedCommunity.toJson(),
-        ),
-        onSuccess: () async {
-          await _indexCommunityForParticipants(communityId, [user]);
-          response = ZeytinXResponse(isSuccess: true, message: "Joined");
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      var response = await zeytin.add(
+          box: _communityBox,
+          tag: communityId,
+          value: updatedCommunity.toJson());
+
+      if (response.isSuccess) {
+        await _indexCommunityForParticipants(communityId, [user]);
+      }
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -843,43 +722,35 @@ class ZeytinXCommunity {
         );
       }
 
-      final participants = community.participants
-          .where((p) => p.uid != user.uid)
-          .toList();
+      final participants =
+          community.participants.where((p) => p.uid != user.uid).toList();
       final updatedCommunity = community.copyWith(participants: participants);
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(
-          _communityBox,
-          communityId,
-          updatedCommunity.toJson(),
-        ),
-        onSuccess: () async {
-          await zeytin.get(
-            boxId: _myCommunitiesBox,
-            tag: user.uid,
-            onSuccess: (userComsRes) async {
-              if (userComsRes.value != null) {
-                List<String> currentIds = List<String>.from(
-                  userComsRes.value!["communityIds"] ?? [],
-                );
-                currentIds.remove(communityId);
-                await zeytin.add(
-                  data: ZeytinValue(_myCommunitiesBox, user.uid, {
-                    "communityIds": currentIds,
-                  }),
-                );
-              }
-            },
+      var response = await zeytin.add(
+          box: _communityBox,
+          tag: communityId,
+          value: updatedCommunity.toJson());
+
+      if (response.isSuccess) {
+        var userComsRes = await zeytin.get(
+          box: _myCommunitiesBox,
+          tag: user.uid,
+        );
+
+        if (userComsRes.isSuccess &&
+            userComsRes.data != null &&
+            userComsRes.data!['value'] != null) {
+          List<String> currentIds = List<String>.from(
+            userComsRes.data!['value']["communityIds"] ?? [],
           );
-          response = ZeytinXResponse(isSuccess: true, message: "Left");
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+          currentIds.remove(communityId);
+          await zeytin.add(box: _myCommunitiesBox, tag: user.uid, value: {
+            "communityIds": currentIds,
+          });
+        }
+      }
+
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -903,9 +774,8 @@ class ZeytinXCommunity {
     try {
       final messageId = _uuid.v4();
       final now = DateTime.now();
-      final selfDestructTimestamp = selfDestructTimer != null
-          ? now.add(selfDestructTimer)
-          : null;
+      final selfDestructTimestamp =
+          selfDestructTimer != null ? now.add(selfDestructTimer) : null;
 
       final message = ZeytinXMessage(
         messageId: messageId,
@@ -927,18 +797,14 @@ class ZeytinXCommunity {
         metadata: metadata,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () async {
-          await _updateCommunityLastMessage(communityId, message, sender);
-          response = ZeytinXResponse(isSuccess: true, message: "Sent");
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      var response = await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
+
+      if (response.isSuccess) {
+        await _updateCommunityLastMessage(communityId, message, sender);
+      }
+
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -961,20 +827,20 @@ class ZeytinXCommunity {
     );
 
     await zeytin.add(
-      data: ZeytinValue(_communityBox, communityId, community.toJson()),
-    );
+        box: _communityBox, tag: communityId, value: community.toJson());
   }
 
   Future<ZeytinXMessage?> getMessage({required String messageId}) async {
-    ZeytinXMessage? message;
-    await zeytin.get(
-      boxId: _messagesBox,
+    var res = await zeytin.get(
+      box: _messagesBox,
       tag: messageId,
-      onSuccess: (res) {
-        if (res.value != null) message = ZeytinXMessage.fromJson(res.value!);
-      },
     );
-    return message;
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXMessage.fromJson(res.data!['value']);
+    }
+
+    return null;
   }
 
   Future<List<ZeytinXMessage>> getMessages({
@@ -983,17 +849,18 @@ class ZeytinXCommunity {
     int? offset,
   }) async {
     List<ZeytinXMessage> messages = [];
-    await zeytin.filter(
-      boxId: _messagesBox,
+    var res = await zeytin.filter(
+      box: _messagesBox,
       predicate: (data) => data["chatId"] == communityId,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            messages.add(ZeytinXMessage.fromJson(item.value!));
-          }
-        }
-      },
     );
+
+    if (res.isSuccess && res.data != null && res.data!['results'] != null) {
+      for (var item in res.data!['results']) {
+        if (item['value'] != null) {
+          messages.add(ZeytinXMessage.fromJson(item['value']));
+        }
+      }
+    }
 
     messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     final startIndex = offset ?? 0;
@@ -1027,16 +894,8 @@ class ZeytinXCommunity {
         editedTimestamp: DateTime.now(),
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Edited"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -1061,16 +920,8 @@ class ZeytinXCommunity {
         deletedForEveryone: deleteForEveryone,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Deleted"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -1107,26 +958,20 @@ class ZeytinXCommunity {
         mentions: originalMessage.mentions,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(
-          _messagesBox,
-          newMessageId,
-          forwardedMessage.toJson(),
-        ),
-        onSuccess: () async {
-          await _updateCommunityLastMessage(
-            targetCommunityId,
-            forwardedMessage,
-            sender,
-          );
-          response = ZeytinXResponse(isSuccess: true, message: "Forwarded");
-        },
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      var response = await zeytin.add(
+          box: _messagesBox,
+          tag: newMessageId,
+          value: forwardedMessage.toJson());
+
+      if (response.isSuccess) {
+        await _updateCommunityLastMessage(
+          targetCommunityId,
+          forwardedMessage,
+          sender,
+        );
+      }
+
+      return response;
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -1162,16 +1007,9 @@ class ZeytinXCommunity {
     if (!starredBy.contains(userId)) {
       starredBy.add(userId);
       message = message.copyWith(starredBy: starredBy);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Starred"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Already starred");
   }
@@ -1189,16 +1027,8 @@ class ZeytinXCommunity {
     if (starredBy.contains(userId)) {
       starredBy.remove(userId);
       message = message.copyWith(starredBy: starredBy);
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Unstarred"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Not starred");
   }
@@ -1207,17 +1037,19 @@ class ZeytinXCommunity {
     required String userId,
   }) async {
     List<ZeytinXMessage> starred = [];
-    await zeytin.getBox(
-      boxId: _messagesBox,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            final m = ZeytinXMessage.fromJson(item.value!);
-            if (m.starredBy.contains(userId) && !m.isDeleted) starred.add(m);
-          }
-        }
-      },
+    var res = await zeytin.getBox(
+      box: _messagesBox,
     );
+
+    if (res.isSuccess && res.data != null) {
+      res.data!.forEach((key, value) {
+        if (value != null) {
+          final m = ZeytinXMessage.fromJson(value);
+          if (m.starredBy.contains(userId) && !m.isDeleted) starred.add(m);
+        }
+      });
+    }
+
     starred.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return starred;
   }
@@ -1251,21 +1083,12 @@ class ZeytinXCommunity {
         pinnedIDs.add(messageId);
         community = community.copyWith(pinnedMessageIDs: pinnedIDs);
         await zeytin.add(
-          data: ZeytinValue(_communityBox, communityId, community.toJson()),
-        );
+            box: _communityBox, tag: communityId, value: community.toJson());
       }
     }
 
-    ZeytinXResponse? response;
-    await zeytin.add(
-      data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-      onSuccess: () =>
-          response = ZeytinXResponse(isSuccess: true, message: "Pinned"),
-      onError: (e, s) =>
-          response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-    );
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+    return await zeytin.add(
+        box: _messagesBox, tag: messageId, value: message.toJson());
   }
 
   Future<ZeytinXResponse> unpinMessage({
@@ -1289,20 +1112,11 @@ class ZeytinXCommunity {
       pinnedIDs.remove(messageId);
       community = community.copyWith(pinnedMessageIDs: pinnedIDs);
       await zeytin.add(
-        data: ZeytinValue(_communityBox, communityId, community.toJson()),
-      );
+          box: _communityBox, tag: communityId, value: community.toJson());
     }
 
-    ZeytinXResponse? response;
-    await zeytin.add(
-      data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-      onSuccess: () =>
-          response = ZeytinXResponse(isSuccess: true, message: "Unpinned"),
-      onError: (e, s) =>
-          response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-    );
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+    return await zeytin.add(
+        box: _messagesBox, tag: messageId, value: message.toJson());
   }
 
   Future<List<ZeytinXMessage>> getPinnedMessages({
@@ -1340,16 +1154,8 @@ class ZeytinXCommunity {
         status: ZeytinXMessageStatus.read,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Read"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Already read");
   }
@@ -1375,16 +1181,8 @@ class ZeytinXCommunity {
         status: ZeytinXMessageStatus.delivered,
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Delivered"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Already delivered");
   }
@@ -1417,16 +1215,8 @@ class ZeytinXCommunity {
         reactions: ZeytinXMessageReactionsModel(reactions: reactions),
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Reacted"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _messagesBox, tag: messageId, value: message.toJson());
     }
     return ZeytinXResponse(isSuccess: true, message: "Already reacted");
   }
@@ -1456,18 +1246,8 @@ class ZeytinXCommunity {
       reactions: ZeytinXMessageReactionsModel(reactions: reactions),
     );
 
-    ZeytinXResponse? response;
-    await zeytin.add(
-      data: ZeytinValue(_messagesBox, messageId, message.toJson()),
-      onSuccess: () => response = ZeytinXResponse(
-        isSuccess: true,
-        message: "Reaction removed",
-      ),
-      onError: (e, s) =>
-          response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-    );
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+    return await zeytin.add(
+        box: _messagesBox, tag: messageId, value: message.toJson());
   }
 
   StreamSubscription<Map<String, dynamic>> listenMessages({
@@ -1476,18 +1256,18 @@ class ZeytinXCommunity {
     required Function(ZeytinXMessage message) onMessageUpdated,
     required Function(String messageId) onMessageDeleted,
   }) {
-    return zeytin.changes.listen((event) {
-      if (event['boxId'] != _messagesBox) return;
+    return zeytin.observer.listen((eventMap) {
+      final operation = ZeytinXOperation.fromMap(eventMap);
+      if (operation.boxId != _messagesBox) return;
 
-      final op = event["op"];
-      final tag = event["tag"];
-
-      if (op == "DELETE") {
-        onMessageDeleted(tag.toString());
+      if (operation.type == ZeytinOpType.delete) {
+        if (operation.tag != null) {
+          onMessageDeleted(operation.tag!);
+        }
         return;
       }
 
-      final rawData = event["value"];
+      final rawData = operation.value?.value;
       if (rawData == null) return;
 
       try {
@@ -1495,10 +1275,9 @@ class ZeytinXCommunity {
         if (message.chatId.trim() == communityId.trim()) {
           if (message.isDeleted) {
             onMessageDeleted(message.messageId);
-          } else if (op == "PUT") {
-            onMessageReceived(message);
-          } else if (op == "UPDATE") {
+          } else if (operation.type == ZeytinOpType.put) {
             onMessageUpdated(message);
+            onMessageReceived(message);
           }
         }
       } catch (e) {
@@ -1513,26 +1292,25 @@ class ZeytinXCommunity {
     required Function(ZeytinXCommunityModel community) onUpdated,
     required Function(String communityId) onDeleted,
   }) {
-    return zeytin.changes.listen((event) {
-      if (event['boxId'] != _communityBox) return;
+    return zeytin.observer.listen((eventMap) {
+      final operation = ZeytinXOperation.fromMap(eventMap);
+      if (operation.boxId != _communityBox) return;
 
-      final op = event["op"];
-      final tag = event["tag"];
-      final rawData = event["value"];
-
-      if (op == "DELETE") {
-        onDeleted(tag.toString());
+      if (operation.type == ZeytinOpType.delete) {
+        if (operation.tag != null) {
+          onDeleted(operation.tag!);
+        }
         return;
       }
 
+      final rawData = operation.value?.value;
       if (rawData != null) {
         try {
           final community = ZeytinXCommunityModel.fromJson(rawData);
           if (community.participants.any((p) => p.uid == user.uid)) {
-            if (op == "PUT") {
-              onCreated(community);
-            } else if (op == "UPDATE") {
+            if (operation.type == ZeytinOpType.put) {
               onUpdated(community);
+              onCreated(community);
             }
           }
         } catch (_) {}
@@ -1574,18 +1352,8 @@ class ZeytinXCommunity {
         moreData: moreData ?? {},
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_boardsBox, postId, post.toJson()),
-        onSuccess: () => response = ZeytinXResponse(
-          isSuccess: true,
-          message: "Post Created",
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _boardsBox, tag: postId, value: post.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -1597,36 +1365,27 @@ class ZeytinXCommunity {
   }) async {
     try {
       ZeytinXCommunityBoardPostModel? post;
-      await zeytin.get(
-        boxId: _boardsBox,
+      var res = await zeytin.get(
+        box: _boardsBox,
         tag: postId,
-        onSuccess: (res) {
-          if (res.value != null) {
-            post = ZeytinXCommunityBoardPostModel.fromJson(res.value!);
-          }
-        },
       );
+
+      if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+        post = ZeytinXCommunityBoardPostModel.fromJson(res.data!['value']);
+      }
 
       if (post == null) {
         return ZeytinXResponse(isSuccess: false, message: "Post not found");
       }
-      if (post!.seenBy.contains(user.uid)) {
+      if (post.seenBy.contains(user.uid)) {
         return ZeytinXResponse(isSuccess: true, message: "Already seen");
       }
 
-      final updatedSeenBy = List<String>.from(post!.seenBy)..add(user.uid);
-      final updatedPost = post!.copyWith(seenBy: updatedSeenBy);
+      final updatedSeenBy = List<String>.from(post.seenBy)..add(user.uid);
+      final updatedPost = post.copyWith(seenBy: updatedSeenBy);
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_boardsBox, postId, updatedPost.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Marked seen"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _boardsBox, tag: postId, value: updatedPost.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -1634,16 +1393,16 @@ class ZeytinXCommunity {
 
   Future<int> getBoardPostSeenCount({required String postId}) async {
     int count = 0;
-    await zeytin.get(
-      boxId: _boardsBox,
+    var res = await zeytin.get(
+      box: _boardsBox,
       tag: postId,
-      onSuccess: (res) {
-        if (res.value != null) {
-          final post = ZeytinXCommunityBoardPostModel.fromJson(res.value!);
-          count = post.seenBy.length;
-        }
-      },
     );
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      final post = ZeytinXCommunityBoardPostModel.fromJson(res.data!['value']);
+      count = post.seenBy.length;
+    }
+
     return count;
   }
 
@@ -1664,19 +1423,10 @@ class ZeytinXCommunity {
         return ZeytinXResponse(isSuccess: false, message: "Not authorized");
       }
 
-      ZeytinXResponse? response;
-      await zeytin.remove(
-        boxId: _boardsBox,
+      return await zeytin.remove(
+        box: _boardsBox,
         tag: postId,
-        onSuccess: () => response = ZeytinXResponse(
-          isSuccess: true,
-          message: "Post Deleted",
-        ),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
       );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -1702,35 +1452,27 @@ class ZeytinXCommunity {
       }
 
       ZeytinXCommunityBoardPostModel? post;
-      await zeytin.get(
-        boxId: _boardsBox,
+      var res = await zeytin.get(
+        box: _boardsBox,
         tag: postId,
-        onSuccess: (res) {
-          if (res.value != null) {
-            post = ZeytinXCommunityBoardPostModel.fromJson(res.value!);
-          }
-        },
       );
+
+      if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+        post = ZeytinXCommunityBoardPostModel.fromJson(res.data!['value']);
+      }
+
       if (post == null) {
         return ZeytinXResponse(isSuccess: false, message: "Post not found");
       }
 
-      post = post!.copyWith(
-        text: newText ?? post!.text,
-        imageURL: newImageURL ?? post!.imageURL,
+      post = post.copyWith(
+        text: newText ?? post.text,
+        imageURL: newImageURL ?? post.imageURL,
         updatedAt: DateTime.now(),
       );
 
-      ZeytinXResponse? response;
-      await zeytin.add(
-        data: ZeytinValue(_boardsBox, postId, post!.toJson()),
-        onSuccess: () =>
-            response = ZeytinXResponse(isSuccess: true, message: "Post Edited"),
-        onError: (e, s) =>
-            response = ZeytinXResponse(isSuccess: false, message: e.toString()),
-      );
-      return response ??
-          ZeytinXResponse(isSuccess: false, message: "Unknown Error");
+      return await zeytin.add(
+          box: _boardsBox, tag: postId, value: post.toJson());
     } catch (e) {
       return ZeytinXResponse(isSuccess: false, message: e.toString());
     }
@@ -1740,17 +1482,19 @@ class ZeytinXCommunity {
     required String communityId,
   }) async {
     List<ZeytinXCommunityBoardPostModel> posts = [];
-    await zeytin.filter(
-      boxId: _boardsBox,
+    var res = await zeytin.filter(
+      box: _boardsBox,
       predicate: (data) => data["communityId"] == communityId,
-      onSuccess: (results) {
-        for (var item in results) {
-          if (item.value != null) {
-            posts.add(ZeytinXCommunityBoardPostModel.fromJson(item.value!));
-          }
-        }
-      },
     );
+
+    if (res.isSuccess && res.data != null && res.data!['results'] != null) {
+      for (var item in res.data!['results']) {
+        if (item['value'] != null) {
+          posts.add(ZeytinXCommunityBoardPostModel.fromJson(item['value']));
+        }
+      }
+    }
+
     posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return posts;
   }

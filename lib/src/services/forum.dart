@@ -1,9 +1,8 @@
 import 'package:uuid/uuid.dart';
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 class ZeytinXForum {
-  final ZeytinStorage zeytin;
+  final ZeytinX zeytin;
   static const String _categoriesBox = 'forum_categories';
   static const String _threadsBox = 'forum_threads';
   final _uuid = const Uuid();
@@ -15,97 +14,48 @@ class ZeytinXForum {
   }) async {
     String id = _uuid.v1();
     var newCategory = categoryModel.copyWith(id: id);
-    ZeytinXResponse? response;
 
-    await zeytin.add(
-      data: ZeytinValue(_categoriesBox, id, newCategory.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newCategory.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _categoriesBox,
+      tag: id,
+      value: newCategory.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> deleteCategory({required String id}) async {
-    ZeytinXResponse? response;
-
-    await zeytin.remove(
-      boxId: _categoriesBox,
+    return await zeytin.remove(
+      box: _categoriesBox,
       tag: id,
-      onSuccess: () {
-        response = ZeytinXResponse(isSuccess: true, message: "ok");
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> updateCategory({
     required String id,
     required ZeytinXForumCategoryModel categoryModel,
   }) async {
-    ZeytinXResponse? response;
     var updatedCategory = categoryModel.copyWith(id: id);
 
-    await zeytin.add(
-      data: ZeytinValue(_categoriesBox, id, updatedCategory.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: updatedCategory.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _categoriesBox,
+      tag: id,
+      value: updatedCategory.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<List<ZeytinXForumCategoryModel>> getAllCategories() async {
     List<ZeytinXForumCategoryModel> list = [];
 
-    await zeytin.getBox(
-      boxId: _categoriesBox,
-      onSuccess: (results) {
-        for (var element in results) {
-          if (element.value != null) {
-            list.add(ZeytinXForumCategoryModel.fromJson(element.value!));
-          }
-        }
-      },
-      onError: (e, s) {
-        ZeytinXPrint.errorPrint(e.toString());
-      },
+    var res = await zeytin.getBox(
+      box: _categoriesBox,
     );
+
+    if (res.isSuccess && res.data != null) {
+      res.data!.forEach((key, value) {
+        if (value != null) {
+          list.add(ZeytinXForumCategoryModel.fromJson(value));
+        }
+      });
+    }
 
     list.sort((a, b) => a.order.compareTo(b.order));
     return list;
@@ -121,114 +71,61 @@ class ZeytinXForum {
       createdAt: now,
       lastActivityAt: now,
     );
-    ZeytinXResponse? response;
 
-    await zeytin.add(
-      data: ZeytinValue(_threadsBox, id, newThread.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newThread.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _threadsBox,
+      tag: id,
+      value: newThread.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> deleteThread({required String id}) async {
-    ZeytinXResponse? response;
-
-    await zeytin.remove(
-      boxId: _threadsBox,
+    return await zeytin.remove(
+      box: _threadsBox,
       tag: id,
-      onSuccess: () {
-        response = ZeytinXResponse(isSuccess: true, message: "ok");
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> updateThread({
     required String id,
     required ZeytinXForumThreadModel threadModel,
   }) async {
-    ZeytinXResponse? response;
     var updatedThread = threadModel.copyWith(id: id);
 
-    await zeytin.add(
-      data: ZeytinValue(_threadsBox, id, updatedThread.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: updatedThread.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _threadsBox,
+      tag: id,
+      value: updatedThread.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXForumThreadModel> getThread({required String id}) async {
-    ZeytinXForumThreadModel? thread;
-
-    await zeytin.get(
-      boxId: _threadsBox,
+    var res = await zeytin.get(
+      box: _threadsBox,
       tag: id,
-      onSuccess: (result) {
-        if (result.value != null) {
-          thread = ZeytinXForumThreadModel.fromJson(result.value!);
-        }
-      },
-      onError: (e, s) {},
     );
 
-    return thread ?? ZeytinXForumThreadModel.empty();
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXForumThreadModel.fromJson(res.data!['value']);
+    }
+
+    return ZeytinXForumThreadModel.empty();
   }
 
   Future<List<ZeytinXForumThreadModel>> getAllThreads() async {
     List<ZeytinXForumThreadModel> list = [];
 
-    await zeytin.getBox(
-      boxId: _threadsBox,
-      onSuccess: (results) {
-        for (var element in results) {
-          if (element.value != null) {
-            list.add(ZeytinXForumThreadModel.fromJson(element.value!));
-          }
-        }
-      },
-      onError: (e, s) {
-        ZeytinXPrint.errorPrint(e.toString());
-      },
+    var res = await zeytin.getBox(
+      box: _threadsBox,
     );
+
+    if (res.isSuccess && res.data != null) {
+      res.data!.forEach((key, value) {
+        if (value != null) {
+          list.add(ZeytinXForumThreadModel.fromJson(value));
+        }
+      });
+    }
 
     list.sort((a, b) {
       DateTime dateA = a.lastActivityAt ?? DateTime(1970);

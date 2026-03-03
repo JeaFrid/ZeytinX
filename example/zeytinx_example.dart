@@ -1,11 +1,10 @@
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 Future<void> main() async {
   // 1. Storage Configuration and Initialization
-  final zeytin = ZeytinStorage(
-    namespace: "zeytinx_example_ns",
-    truckID: "example_truck",
+  final zeytin = ZeytinX(
+    "zeytinx_example_ns",
+    "example_truck",
   );
 
   String dbPath = "./zeytinx_example_db";
@@ -74,7 +73,4 @@ Future<void> main() async {
       messageType: ZeytinXMessageType.text,
     );
   }
-
-  // 6. Cleanup
-  await zeytin.deleteAll();
 }

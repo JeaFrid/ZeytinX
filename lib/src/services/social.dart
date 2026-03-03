@@ -1,9 +1,8 @@
 import 'package:uuid/uuid.dart';
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 class ZeytinXSocial {
-  final ZeytinStorage zeytin;
+  final ZeytinX zeytin;
   static const String _box = 'social';
   final _uuid = const Uuid();
 
@@ -13,81 +12,33 @@ class ZeytinXSocial {
     required ZeytinXSocialModel postModel,
   }) async {
     String id = _uuid.v1();
-    ZeytinXResponse? response;
-
     var newPost = postModel.copyWith(id: id);
 
-    await zeytin.add(
-      data: ZeytinValue(_box, id, newPost.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newPost.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _box,
+      tag: id,
+      value: newPost.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> deletePost({required String id}) async {
-    ZeytinXResponse? response;
-
-    await zeytin.remove(
-      boxId: _box,
+    return await zeytin.remove(
+      box: _box,
       tag: id,
-      onSuccess: () {
-        response = ZeytinXResponse(isSuccess: true, message: "ok");
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> editPost({
     required String id,
     required ZeytinXSocialModel postModel,
   }) async {
-    ZeytinXResponse? response;
     var newPost = postModel.copyWith(id: id);
 
-    await zeytin.add(
-      data: ZeytinValue(_box, id, newPost.toJson()),
-      onSuccess: () {
-        response = ZeytinXResponse(
-          isSuccess: true,
-          message: "ok",
-          data: newPost.toJson(),
-        );
-      },
-      onError: (e, s) {
-        response = ZeytinXResponse(
-          isSuccess: false,
-          message: "Error",
-          error: e.toString(),
-        );
-      },
+    return await zeytin.add(
+      box: _box,
+      tag: id,
+      value: newPost.toJson(),
     );
-
-    return response ??
-        ZeytinXResponse(isSuccess: false, message: "Unknown error");
   }
 
   Future<ZeytinXResponse> addLike({
@@ -243,37 +194,32 @@ class ZeytinXSocial {
   }
 
   Future<ZeytinXSocialModel> getPost({required String id}) async {
-    ZeytinXSocialModel? post;
-
-    await zeytin.get(
-      boxId: _box,
+    var res = await zeytin.get(
+      box: _box,
       tag: id,
-      onSuccess: (result) {
-        if (result.value != null) {
-          post = ZeytinXSocialModel.fromJson(result.value!);
-        }
-      },
-      onError: (e, s) {},
     );
-    return post ?? ZeytinXSocialModel.fromJson({});
+
+    if (res.isSuccess && res.data != null && res.data!['value'] != null) {
+      return ZeytinXSocialModel.fromJson(res.data!['value']);
+    }
+
+    return ZeytinXSocialModel.fromJson({});
   }
 
   Future<List<ZeytinXSocialModel>> getAllPost() async {
     List<ZeytinXSocialModel> list = [];
 
-    await zeytin.getBox(
-      boxId: _box,
-      onSuccess: (results) {
-        for (var element in results) {
-          if (element.value != null) {
-            list.add(ZeytinXSocialModel.fromJson(element.value!));
-          }
-        }
-      },
-      onError: (e, s) {
-        ZeytinXPrint.errorPrint(e.toString());
-      },
+    var res = await zeytin.getBox(
+      box: _box,
     );
+
+    if (res.isSuccess && res.data != null) {
+      res.data!.forEach((key, value) {
+        if (value != null) {
+          list.add(ZeytinXSocialModel.fromJson(value));
+        }
+      });
+    }
 
     return list;
   }

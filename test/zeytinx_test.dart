@@ -1,11 +1,8 @@
-import 'dart:async';
-import 'dart:io';
 import 'package:test/test.dart';
-import 'package:zeytin_local_storage/zeytin_local_storage.dart';
 import 'package:zeytinx/zeytinx.dart';
 
 void main() {
-  late ZeytinStorage zeytin;
+  late ZeytinX zeytin;
   late ZeytinXUser userService;
   late ZeytinXSocial socialService;
   late ZeytinXChat chatService;
@@ -14,7 +11,7 @@ void main() {
   final String testDbPath = "./zeytinx_test_db";
 
   setUpAll(() async {
-    zeytin = ZeytinStorage(namespace: "test_namespace", truckID: "test_truck");
+    zeytin = ZeytinX("test_namespace", "test_truck");
 
     await zeytin.initialize(testDbPath);
 
@@ -22,20 +19,6 @@ void main() {
     socialService = ZeytinXSocial(zeytin);
     chatService = ZeytinXChat(zeytin);
     communityService = ZeytinXCommunity(zeytin);
-  });
-
-  tearDownAll(() async {
-    final completer = Completer<void>();
-    await zeytin.deleteAll(
-      onSuccess: () => completer.complete(),
-      onError: (e, s) => completer.completeError(e),
-    );
-    await completer.future;
-
-    final dir = Directory(testDbPath);
-    if (dir.existsSync()) {
-      dir.deleteSync(recursive: true);
-    }
   });
 
   group('User Service Tests', () {
