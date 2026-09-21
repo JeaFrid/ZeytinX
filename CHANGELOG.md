@@ -54,3 +54,7 @@ You can review: src/database.dart && utils/operation.dart
 ## 2.2.0
 
 - The encryptor has been updated. Don't worry, everything is the same. It's just technical matters.
+
+## 2.2.1
+
+- Damn pointycastle is giving an error at the wrong time, so I'm making a patch. No problem.
