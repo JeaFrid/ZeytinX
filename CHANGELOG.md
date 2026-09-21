@@ -50,3 +50,7 @@ You can review: src/database.dart && utils/operation.dart
 
 - All ZeytinStorage classes have been recoded with ZeytinX. You will no longer need the zeytin_local_storage package for ZeytinStorage at the start.
 - Some minor bug fixes.
+
+## 2.2.0
+
+- The encryptor has been updated. Don't worry, everything is the same. It's just technical matters.
